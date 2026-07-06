@@ -8,12 +8,10 @@ class SaleCreate(BaseModel):
     item_id: str
     date: date_type = Field(default_factory=date_type.today)
     quantity_sold: float
-    amount: float
 
 
 class SaleUpdate(BaseModel):
-    quantity_sold: float | None = None
-    amount: float | None = None
+    quantity_sold: float
 
 
 class SaleOut(BaseModel):

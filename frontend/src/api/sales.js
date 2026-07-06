@@ -5,13 +5,13 @@ export function listSales(params = {}) {
   return apiFetch(`/sales${query ? `?${query}` : ""}`);
 }
 
-export function createSale({ itemId, quantitySold, amount }) {
+export function createSale({ itemId, quantitySold }) {
   return apiFetch("/sales", {
     method: "POST",
-    body: { item_id: itemId, quantity_sold: quantitySold, amount },
+    body: { item_id: itemId, quantity_sold: quantitySold },
   });
 }
 
-export function updateSale(id, payload) {
-  return apiFetch(`/sales/${id}`, { method: "PATCH", body: payload });
+export function updateSale(id, quantitySold) {
+  return apiFetch(`/sales/${id}`, { method: "PATCH", body: { quantity_sold: quantitySold } });
 }

@@ -27,7 +27,7 @@ const error = ref("");
 
 const deliveryForm = ref({ itemId: "", quantityDelivered: "", isShort: false });
 const countForm = ref({ itemId: "", quantityRemaining: "" });
-const saleForm = ref({ itemId: "", quantitySold: "", amount: "" });
+const saleForm = ref({ itemId: "", quantitySold: "" });
 
 const submitting = ref({ delivery: false, count: false, sale: false });
 
@@ -38,6 +38,14 @@ function itemName(id) {
 function itemUnit(id) {
   return stockItems.value.find((i) => i.id === id)?.unit || "";
 }
+
+function itemPrice(id) {
+  return stockItems.value.find((i) => i.id === id)?.price || 0;
+}
+
+const saleFormAmount = computed(() =>
+  itemPrice(saleForm.value.itemId) * Number(saleForm.value.quantitySold || 0)
+);
 
 async function refresh() {
   loading.value = true;
@@ -92,9 +100,8 @@ async function submitSale() {
     await createSale({
       itemId: saleForm.value.itemId,
       quantitySold: Number(saleForm.value.quantitySold),
-      amount: Number(saleForm.value.amount),
     });
-    saleForm.value = { itemId: "", quantitySold: "", amount: "" };
+    saleForm.value = { itemId: "", quantitySold: "" };
     await refresh();
   } catch (e) {
     error.value = e instanceof ApiError ? e.detail || "Could not log sale" : "Could not log sale";
@@ -192,7 +199,7 @@ onMounted(refresh);
               <option v-for="i in stockItems" :key="i.id" :value="i.id">{{ i.name }} ({{ i.unit }})</option>
             </select>
             <input v-model="saleForm.quantitySold" type="number" min="0" step="any" placeholder="Quantity sold" required />
-            <input v-model="saleForm.amount" type="number" min="0" step="any" placeholder="Amount (₱)" required />
+            <p v-if="saleForm.itemId" class="amount-preview">Amount: ₱{{ saleFormAmount.toFixed(2) }}</p>
             <button type="submit" :disabled="submitting.sale">
               {{ submitting.sale ? "Saving..." : "Log sale" }}
             </button>
@@ -330,6 +337,13 @@ onMounted(refresh);
 .entry-form button {
   grid-column: 1 / -1;
   width: fit-content;
+}
+
+.amount-preview {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
 }
 
 .entry-list {

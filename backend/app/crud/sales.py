@@ -43,13 +43,9 @@ def get_sale(db: Session, sale_id: str) -> Sale | None:
     return db.get(Sale, sale_id)
 
 
-def update_sale(
-    db: Session, sale: Sale, *, quantity_sold: float | None, amount: float | None
-) -> Sale:
-    if quantity_sold is not None:
-        sale.quantity_sold = quantity_sold
-    if amount is not None:
-        sale.amount = amount
+def update_sale(db: Session, sale: Sale, *, quantity_sold: float, amount: float) -> Sale:
+    sale.quantity_sold = quantity_sold
+    sale.amount = amount
     db.commit()
     db.refresh(sale)
     return sale

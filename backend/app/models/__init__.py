@@ -1,6 +1,5 @@
 from app.models.base import Base
 from app.models.branch import Branch
-from app.models.expense import Expense
 from app.models.sale import Sale
 from app.models.stock_count import StockCount
 from app.models.stock_delivery import StockDelivery
@@ -15,5 +14,4 @@ __all__ = [
     "StockDelivery",
     "StockCount",
     "Sale",
-    "Expense",
 ]

@@ -1,11 +1,10 @@
 import calendar
-from datetime import date as date_type
+from datetime import date as date_type, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.branch import Branch
-from app.models.expense import Expense
 from app.models.sale import Sale
 from app.models.stock_delivery import StockDelivery
 from app.models.user import User
@@ -15,11 +14,6 @@ def _branch_summary(db: Session, branch: Branch, start: date_type, end: date_typ
     total_sales = db.scalar(
         select(func.coalesce(func.sum(Sale.amount), 0.0)).where(
             Sale.branch_id == branch.id, Sale.date >= start, Sale.date <= end
-        )
-    )
-    total_expenses = db.scalar(
-        select(func.coalesce(func.sum(Expense.amount), 0.0)).where(
-            Expense.branch_id == branch.id, Expense.date >= start, Expense.date <= end
         )
     )
     has_shortfall = (
@@ -38,8 +32,6 @@ def _branch_summary(db: Session, branch: Branch, start: date_type, end: date_typ
         "branch_id": branch.id,
         "branch_name": branch.name,
         "total_sales": total_sales,
-        "total_expenses": total_expenses,
-        "profit": total_sales - total_expenses,
         "has_shortfall": has_shortfall,
     }
 
@@ -58,9 +50,32 @@ def overview(db: Session) -> dict:
         "staff_count": staff_count,
         "branches": branch_summaries,
         "total_sales": sum(b["total_sales"] for b in branch_summaries),
-        "total_expenses": sum(b["total_expenses"] for b in branch_summaries),
-        "total_profit": sum(b["profit"] for b in branch_summaries),
     }
+
+
+def _daily_breakdown(db: Session, branches: list[Branch], start: date_type, end: date_type) -> list[dict]:
+    rows = db.execute(
+        select(Sale.date, Sale.branch_id, func.sum(Sale.amount))
+        .where(Sale.date >= start, Sale.date <= end)
+        .group_by(Sale.date, Sale.branch_id)
+    ).all()
+    totals_by_date: dict[date_type, dict[str, float]] = {}
+    for sale_date, branch_id, total in rows:
+        totals_by_date.setdefault(sale_date, {})[branch_id] = total
+
+    daily = []
+    current = start
+    while current <= end:
+        by_branch = totals_by_date.get(current, {})
+        daily.append(
+            {
+                "date": current.isoformat(),
+                "branch_sales": {b.id: by_branch.get(b.id, 0.0) for b in branches},
+                "total_sales": sum(by_branch.values()),
+            }
+        )
+        current += timedelta(days=1)
+    return daily
 
 
 def monthly(db: Session, year: int, month: int) -> dict:
@@ -75,6 +90,5 @@ def monthly(db: Session, year: int, month: int) -> dict:
         "month": month,
         "branches": branch_summaries,
         "total_sales": sum(b["total_sales"] for b in branch_summaries),
-        "total_expenses": sum(b["total_expenses"] for b in branch_summaries),
-        "total_profit": sum(b["profit"] for b in branch_summaries),
+        "daily": _daily_breakdown(db, branches, start, end),
     }

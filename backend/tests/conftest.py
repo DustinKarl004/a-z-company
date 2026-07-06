@@ -73,7 +73,7 @@ def branch2(db_session):
 
 @pytest.fixture()
 def stock_item(db_session):
-    return create_stock_item(db_session, name="Rice", unit="kg")
+    return create_stock_item(db_session, name="Rice", unit="kg", price=50.0)
 
 
 def _staff_token(client, db_session, branch, email):

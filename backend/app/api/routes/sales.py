@@ -24,7 +24,8 @@ def create_sale_endpoint(
     branch_id = resolve_branch_id(user, payload.branch_id)
     if get_branch(db, branch_id) is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid branch_id")
-    if get_stock_item(db, payload.item_id) is None:
+    item = get_stock_item(db, payload.item_id)
+    if item is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid item_id")
     ensure_creatable_date(user, payload.date)
 
@@ -34,7 +35,7 @@ def create_sale_endpoint(
         item_id=payload.item_id,
         date_=payload.date,
         quantity_sold=payload.quantity_sold,
-        amount=payload.amount,
+        amount=payload.quantity_sold * item.price,
         created_by_id=user.id,
     )
     return SaleOut.model_validate(sale)
@@ -67,5 +68,8 @@ def update_sale_endpoint(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your branch")
     ensure_editable(user, sale.date)
 
-    updated = update_sale(db, sale, quantity_sold=payload.quantity_sold, amount=payload.amount)
+    item = get_stock_item(db, sale.item_id)
+    updated = update_sale(
+        db, sale, quantity_sold=payload.quantity_sold, amount=payload.quantity_sold * item.price
+    )
     return SaleOut.model_validate(updated)

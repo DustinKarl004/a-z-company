@@ -6,6 +6,12 @@ from pydantic import BaseModel, ConfigDict
 class StockItemCreate(BaseModel):
     name: str
     unit: str
+    price: float
+
+
+class StockItemUpdate(BaseModel):
+    unit: str
+    price: float
 
 
 class StockItemOut(BaseModel):
@@ -14,4 +20,5 @@ class StockItemOut(BaseModel):
     id: str
     name: str
     unit: str
+    price: float
     created_at: datetime
