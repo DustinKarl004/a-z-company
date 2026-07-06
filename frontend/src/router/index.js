@@ -2,8 +2,10 @@ import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import LoginView from "../views/LoginView.vue";
 import AdminLayout from "../views/AdminLayout.vue";
+import AdminDashboardView from "../views/AdminDashboardView.vue";
 import AdminBranchesView from "../views/AdminBranchesView.vue";
 import AdminStaffView from "../views/AdminStaffView.vue";
+import AdminStockItemsView from "../views/AdminStockItemsView.vue";
 import StaffHomeView from "../views/StaffHomeView.vue";
 import NotFoundView from "../views/NotFoundView.vue";
 
@@ -14,9 +16,11 @@ const routes = [
     component: AdminLayout,
     meta: { requiresRole: "admin" },
     children: [
-      { path: "", redirect: { name: "admin-branches" } },
+      { path: "", redirect: { name: "admin-dashboard" } },
+      { path: "dashboard", name: "admin-dashboard", component: AdminDashboardView },
       { path: "branches", name: "admin-branches", component: AdminBranchesView },
       { path: "staff", name: "admin-staff", component: AdminStaffView },
+      { path: "stock-items", name: "admin-stock-items", component: AdminStockItemsView },
     ],
   },
   {
@@ -38,7 +42,7 @@ router.beforeEach((to) => {
   const auth = useAuthStore();
 
   if (to.meta.guestOnly && auth.isAuthenticated) {
-    return auth.role === "admin" ? { name: "admin-branches" } : { name: "staff-home" };
+    return auth.role === "admin" ? { name: "admin-dashboard" } : { name: "staff-home" };
   }
 
   if (to.meta.requiresRole) {
@@ -46,7 +50,7 @@ router.beforeEach((to) => {
       return { name: "login" };
     }
     if (auth.role !== to.meta.requiresRole) {
-      return auth.role === "admin" ? { name: "admin-branches" } : { name: "staff-home" };
+      return auth.role === "admin" ? { name: "admin-dashboard" } : { name: "staff-home" };
     }
   }
 

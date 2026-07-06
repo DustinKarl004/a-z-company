@@ -45,3 +45,9 @@ def require_staff(user: User = Depends(get_current_user)) -> User:
     if user.role != "staff":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
     return user
+
+
+def require_staff_or_admin(user: User = Depends(get_current_user)) -> User:
+    if user.role not in ("staff", "admin"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access required")
+    return user

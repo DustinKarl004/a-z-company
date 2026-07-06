@@ -21,8 +21,10 @@ function onLogout() {
         </div>
 
         <nav>
+          <router-link :to="{ name: 'admin-dashboard' }">Dashboard</router-link>
           <router-link :to="{ name: 'admin-branches' }">Branches</router-link>
           <router-link :to="{ name: 'admin-staff' }">Staff</router-link>
+          <router-link :to="{ name: 'admin-stock-items' }">Stock Items</router-link>
         </nav>
 
         <button class="logout-btn" @click="onLogout">
