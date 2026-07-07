@@ -1,12 +1,17 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { ApiError } from "../api/client";
 import { listStockItems } from "../api/stockItems";
 import { createStockDelivery, listStockDeliveries, updateStockDelivery } from "../api/stockDeliveries";
-import CustomSelect from "../components/CustomSelect.vue";
+import { createStockCount, listStockCounts, updateStockCount } from "../api/stockCounts";
+import { createTotalSale, listSales, updateTotalSale } from "../api/sales";
+import { useAuthStore } from "../stores/auth";
 import Icon from "../components/Icon.vue";
 
+const auth = useAuthStore();
+
 const today = new Date().toISOString().slice(0, 10);
+const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 const todayLabel = new Date().toLocaleDateString(undefined, {
   weekday: "long",
   month: "long",
@@ -29,102 +34,191 @@ function categoryRank(category) {
 }
 
 const stockItems = ref([]);
-const deliveries = ref([]);
 const loading = ref(true);
 const error = ref("");
 const search = ref("");
 
-const deliveryForm = ref({ itemId: "", quantityDelivered: "", isShort: false });
-const submitting = ref(false);
+const totalSale = reactive({ id: null, amount: "", saving: false, saved: false, error: "", editing: false });
 
-const itemOptions = computed(() =>
+function peso(amount) {
+  return `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// itemId -> row state
+const rows = reactive({});
+
+function rowFor(itemId) {
+  if (!rows[itemId]) {
+    rows[itemId] = {
+      opening: null,
+      delivery: "",
+      deliveryId: null,
+      isShort: false,
+      deliverySaving: false,
+      deliverySaved: false,
+      deliveryError: "",
+      closing: "",
+      closingId: null,
+      closingSaving: false,
+      closingSaved: false,
+      closingError: "",
+    };
+  }
+  return rows[itemId];
+}
+
+const sortedItems = computed(() =>
   stockItems.value
     .slice()
     .sort((a, b) => {
       const rankDiff = categoryRank(a.category) - categoryRank(b.category);
       return rankDiff !== 0 ? rankDiff : a.name.localeCompare(b.name);
     })
-    .map((i) => ({ label: `${i.name} (${i.unit})`, value: i.id, group: i.category || "Uncategorized" }))
 );
 
-function itemName(id) {
-  return stockItems.value.find((i) => i.id === id)?.name || "—";
-}
-
-function itemUnit(id) {
-  return stockItems.value.find((i) => i.id === id)?.unit || "";
-}
-
-function itemCategory(id) {
-  return stockItems.value.find((i) => i.id === id)?.category || "";
-}
-
-const filteredDeliveries = computed(() => {
+const filteredItems = computed(() => {
   const term = search.value.trim().toLowerCase();
-  if (!term) return deliveries.value;
-  return deliveries.value.filter((d) => itemName(d.item_id).toLowerCase().includes(term));
+  if (!term) return sortedItems.value;
+  return sortedItems.value.filter((i) => i.name.toLowerCase().includes(term));
 });
+
+const loggedTodayCount = computed(
+  () => Object.values(rows).filter((r) => r.deliveryId || r.closingId).length
+);
+
+function kilogramUsed(itemId) {
+  const r = rows[itemId];
+  if (!r) return null;
+  if (r.delivery === "" || r.closing === "") return null;
+  const opening = Number(r.opening) || 0;
+  const delivery = Number(r.delivery);
+  const closing = Number(r.closing);
+  if (Number.isNaN(delivery) || Number.isNaN(closing)) return null;
+  return opening + delivery - closing;
+}
+
+function isComplete(itemId) {
+  return kilogramUsed(itemId) !== null;
+}
 
 async function refresh() {
   loading.value = true;
-  [stockItems.value, deliveries.value] = await Promise.all([
+  error.value = "";
+  const [items, todayDeliveries, todayCounts, openingCounts, todaySales] = await Promise.all([
     listStockItems(),
     listStockDeliveries({ date: today }),
+    listStockCounts({ date: today }),
+    listStockCounts({ date: yesterday }),
+    listSales({ date: today }),
   ]);
+  stockItems.value = items;
+
+  const openingByItem = new Map(openingCounts.map((c) => [c.item_id, c.quantity_remaining]));
+
+  for (const item of items) {
+    const r = rowFor(item.id);
+    r.opening = openingByItem.has(item.id) ? openingByItem.get(item.id) : 0;
+  }
+  for (const d of todayDeliveries) {
+    const r = rowFor(d.item_id);
+    r.delivery = String(d.quantity_delivered);
+    r.deliveryId = d.id;
+    r.isShort = d.is_short;
+  }
+  for (const c of todayCounts) {
+    const r = rowFor(c.item_id);
+    r.closing = String(c.quantity_remaining);
+    r.closingId = c.id;
+  }
+
+  const existingTotalSale = todaySales.find((s) => s.item_id === null);
+  totalSale.id = existingTotalSale?.id || null;
+  totalSale.amount = existingTotalSale ? String(existingTotalSale.amount) : "";
+
   loading.value = false;
 }
 
-async function submitDelivery() {
-  error.value = "";
-  submitting.value = true;
+function flashSaved(r, field) {
+  r[`${field}Saved`] = true;
+  setTimeout(() => {
+    r[`${field}Saved`] = false;
+  }, 1500);
+}
+
+async function saveTotalSale() {
+  totalSale.error = "";
+  if (totalSale.amount === "" || Number.isNaN(Number(totalSale.amount))) return;
+  totalSale.saving = true;
   try {
-    await createStockDelivery({
-      itemId: deliveryForm.value.itemId,
-      quantityDelivered: Number(deliveryForm.value.quantityDelivered),
-      isShort: deliveryForm.value.isShort,
-    });
-    deliveryForm.value = { itemId: "", quantityDelivered: "", isShort: false };
-    await refresh();
+    if (totalSale.id) {
+      await updateTotalSale(totalSale.id, Number(totalSale.amount));
+    } else {
+      const created = await createTotalSale({ date: today, amount: Number(totalSale.amount) });
+      totalSale.id = created.id;
+    }
+    totalSale.editing = false;
+    totalSale.saved = true;
+    setTimeout(() => {
+      totalSale.saved = false;
+    }, 1500);
   } catch (e) {
-    error.value = e instanceof ApiError ? e.detail || "Could not log delivery" : "Could not log delivery";
+    totalSale.error = e instanceof ApiError ? e.detail || "Could not save" : "Could not save";
   } finally {
-    submitting.value = false;
+    totalSale.saving = false;
   }
 }
 
-const editingId = ref(null);
-const editingQuantity = ref("");
-const editingIsShort = ref(false);
-const editError = ref("");
-const savingEdit = ref(false);
-
-function startEdit(delivery) {
-  editingId.value = delivery.id;
-  editingQuantity.value = delivery.quantity_delivered;
-  editingIsShort.value = delivery.is_short;
-  editError.value = "";
-}
-
-function cancelEdit() {
-  editingId.value = null;
-  editError.value = "";
-}
-
-async function saveEdit(delivery) {
-  editError.value = "";
-  savingEdit.value = true;
+async function saveDelivery(itemId) {
+  const r = rowFor(itemId);
+  r.deliveryError = "";
+  if (r.delivery === "" || Number.isNaN(Number(r.delivery))) return;
+  r.deliverySaving = true;
   try {
-    await updateStockDelivery(delivery.id, {
-      quantity_delivered: Number(editingQuantity.value),
-      is_short: editingIsShort.value,
-    });
-    editingId.value = null;
-    await refresh();
+    if (r.deliveryId) {
+      await updateStockDelivery(r.deliveryId, {
+        quantity_delivered: Number(r.delivery),
+        is_short: r.isShort,
+      });
+    } else {
+      const created = await createStockDelivery({
+        itemId,
+        quantityDelivered: Number(r.delivery),
+        isShort: r.isShort,
+      });
+      r.deliveryId = created.id;
+    }
+    flashSaved(r, "delivery");
   } catch (e) {
-    editError.value = e instanceof ApiError ? e.detail || "Could not update delivery" : "Could not update delivery";
+    r.deliveryError = e instanceof ApiError ? e.detail || "Could not save" : "Could not save";
   } finally {
-    savingEdit.value = false;
+    r.deliverySaving = false;
   }
+}
+
+async function saveClosing(itemId) {
+  const r = rowFor(itemId);
+  r.closingError = "";
+  if (r.closing === "" || Number.isNaN(Number(r.closing))) return;
+  r.closingSaving = true;
+  try {
+    if (r.closingId) {
+      await updateStockCount(r.closingId, { quantity_remaining: Number(r.closing) });
+    } else {
+      const created = await createStockCount({ itemId, quantityRemaining: Number(r.closing) });
+      r.closingId = created.id;
+    }
+    flashSaved(r, "closing");
+  } catch (e) {
+    r.closingError = e instanceof ApiError ? e.detail || "Could not save" : "Could not save";
+  } finally {
+    r.closingSaving = false;
+  }
+}
+
+function useOpeningAsClosing(itemId) {
+  const r = rowFor(itemId);
+  r.closing = String(r.opening ?? 0);
+  saveClosing(itemId);
 }
 
 onMounted(refresh);
@@ -133,86 +227,147 @@ onMounted(refresh);
 <template>
   <div class="page-header top-header">
     <div>
-      <h1>Stock delivery</h1>
-      <p class="page-subtitle">{{ todayLabel }} — you can edit anything logged today until midnight.</p>
+      <h1>Daily stock</h1>
+      <p class="page-subtitle">
+        {{ todayLabel }}
+        <span v-if="auth.branchName" class="branch-chip">{{ auth.branchName }}</span>
+      </p>
     </div>
-    <span v-if="!loading" class="count-chip"><Icon name="count" :size="14" /> {{ deliveries.length }} logged today</span>
+    <span v-if="!loading" class="count-chip"><Icon name="count" :size="14" /> {{ loggedTodayCount }} logged today</span>
   </div>
 
   <p v-if="error" class="error-message top-error">{{ error }}</p>
   <p v-if="loading" class="state-message">Loading...</p>
 
   <template v-else>
-    <section class="card entry-section">
-      <form class="entry-form" @submit.prevent="submitDelivery">
-        <div class="field">
-          <label for="delivery-item">Item</label>
-          <CustomSelect id="delivery-item" v-model="deliveryForm.itemId" :options="itemOptions" placeholder="Select an item" searchable />
+    <div class="card total-sale-card">
+      <div class="total-sale-row">
+        <div class="total-sale-group">
+          <span class="total-sale-label">Total Daily Sales</span>
+
+          <div v-if="!totalSale.id || totalSale.editing" class="total-sale-input-row">
+            <span class="unit-label">₱</span>
+            <input
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="any"
+              class="value-input"
+              :class="{ saved: totalSale.saved }"
+              placeholder="0"
+              v-model="totalSale.amount"
+              @blur="saveTotalSale"
+              @keyup.enter="($event.target).blur()"
+            />
+            <span v-if="totalSale.saving" class="save-status">Saving...</span>
+          </div>
+          <div v-else class="total-sale-input-row">
+            <span class="total-sale-value">{{ peso(Number(totalSale.amount)) }}</span>
+            <button
+              type="button"
+              class="edit-bill-btn"
+              title="Edit total daily sales"
+              aria-label="Edit total daily sales"
+              @click="totalSale.editing = true"
+            >
+              <Icon name="edit" :size="12" />
+            </button>
+          </div>
         </div>
-        <div class="field">
-          <label for="delivery-qty">Quantity delivered</label>
-          <input id="delivery-qty" v-model="deliveryForm.quantityDelivered" type="number" min="0" step="any" placeholder="e.g. 10" required />
+
+        <div v-if="stockItems.length" class="search-input">
+          <Icon name="search" :size="15" class="search-icon" />
+          <input v-model="search" placeholder="Search items" />
+          <button v-if="search" type="button" class="search-clear" aria-label="Clear search" @click="search = ''">
+            <Icon name="x" :size="13" />
+          </button>
         </div>
-        <label class="checkbox-field">
-          <input v-model="deliveryForm.isShort" type="checkbox" />
-          Delivery was short / not enough
-        </label>
-        <button type="submit" class="btn-icon" :disabled="submitting || !deliveryForm.itemId">
-          <Icon name="plus" :size="16" /> {{ submitting ? "Saving..." : "Log delivery" }}
-        </button>
-      </form>
-    </section>
-
-    <div v-if="deliveries.length" class="card search-card">
-      <div class="search-input">
-        <Icon name="search" :size="15" class="search-icon" />
-        <input v-model="search" placeholder="Search today's deliveries by item name" />
-        <button v-if="search" type="button" class="search-clear" aria-label="Clear search" @click="search = ''">
-          <Icon name="x" :size="13" />
-        </button>
       </div>
+      <p v-if="totalSale.error" class="row-error">{{ totalSale.error }}</p>
     </div>
 
-    <div v-if="!deliveries.length" class="card state-card">
+    <div v-if="!filteredItems.length" class="card state-card">
       <div class="empty-state">
-        <p>No deliveries logged yet today.</p>
-        <p class="empty-hint">Use the form above to log the first delivery.</p>
-      </div>
-    </div>
-    <div v-else-if="!filteredDeliveries.length" class="card state-card">
-      <div class="empty-state">
-        <p>No deliveries match your search.</p>
+        <p>No items match your search.</p>
       </div>
     </div>
 
-    <ul v-else class="entry-list">
-      <li v-for="d in filteredDeliveries" :key="d.id" class="entry-item">
-        <template v-if="editingId === d.id">
-          <div class="edit-row">
-            <input v-model="editingQuantity" type="number" min="0" step="any" autofocus />
-            <span class="edit-unit">{{ itemUnit(d.item_id) }}</span>
-            <label class="checkbox-field inline">
-              <input v-model="editingIsShort" type="checkbox" />
-              Short
-            </label>
-            <div class="edit-actions">
-              <button type="button" class="secondary cancel" :disabled="savingEdit" @click="cancelEdit">Cancel</button>
-              <button type="button" :disabled="savingEdit" @click="saveEdit(d)">{{ savingEdit ? "Saving..." : "Save" }}</button>
+    <div v-else class="stock-list">
+      <div v-for="item in filteredItems" :key="item.id" class="stock-row">
+        <div class="row-main">
+          <span class="item-name">{{ item.name }}</span>
+          <span v-if="item.category" class="category-chip">{{ item.category }}</span>
+        </div>
+
+        <div class="row-values">
+          <div class="value-group">
+            <span class="value-label">Opening</span>
+            <span class="value-text muted">{{ rowFor(item.id).opening }}</span>
+          </div>
+
+          <div class="value-group">
+            <span class="value-label">Delivery</span>
+            <input
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="any"
+              class="value-input"
+              :class="{ saved: rowFor(item.id).deliverySaved }"
+              placeholder="0"
+              v-model="rowFor(item.id).delivery"
+              @blur="saveDelivery(item.id)"
+              @keyup.enter="($event.target).blur()"
+            />
+          </div>
+
+          <div class="value-group">
+            <span class="value-label">Closing</span>
+            <div class="closing-input-row">
+              <input
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="any"
+                class="value-input"
+                :class="{ saved: rowFor(item.id).closingSaved }"
+                placeholder="0"
+                v-model="rowFor(item.id).closing"
+                @blur="saveClosing(item.id)"
+                @keyup.enter="($event.target).blur()"
+              />
+              <button
+                type="button"
+                class="same-as-opening-btn"
+                title="Same as opening"
+                aria-label="Set closing same as opening"
+                @click="useOpeningAsClosing(item.id)"
+              >
+                <Icon name="equal" :size="14" />
+              </button>
             </div>
           </div>
-          <p v-if="editError" class="error-message">{{ editError }}</p>
-        </template>
-        <template v-else>
-          <div class="entry-main">
-            <div class="entry-name">{{ itemName(d.item_id) }}</div>
-            <span v-if="itemCategory(d.item_id)" class="category-chip">{{ itemCategory(d.item_id) }}</span>
-            <span v-if="d.is_short" class="badge inactive">Short</span>
+
+          <div class="value-group result">
+            <span class="value-label">Used</span>
+            <span
+              v-if="isComplete(item.id)"
+              class="value-text"
+              :class="{ negative: kilogramUsed(item.id) < 0, positive: kilogramUsed(item.id) > 0 }"
+            >{{ kilogramUsed(item.id) }}</span>
+            <span v-else class="value-text muted">—</span>
           </div>
-          <div class="entry-value">{{ d.quantity_delivered }} {{ itemUnit(d.item_id) }}</div>
-          <button type="button" class="secondary edit btn-icon" @click="startEdit(d)"><Icon name="edit" :size="14" /> Edit</button>
-        </template>
-      </li>
-    </ul>
+        </div>
+
+        <label class="short-toggle">
+          <input type="checkbox" v-model="rowFor(item.id).isShort" @change="saveDelivery(item.id)" />
+          Need Deliver
+        </label>
+
+        <p v-if="rowFor(item.id).deliveryError" class="row-error">{{ rowFor(item.id).deliveryError }}</p>
+        <p v-if="rowFor(item.id).closingError" class="row-error">{{ rowFor(item.id).closingError }}</p>
+      </div>
+    </div>
   </template>
 </template>
 
@@ -223,6 +378,20 @@ onMounted(refresh);
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.75rem;
+}
+
+.branch-chip {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  border: 1px solid var(--color-primary);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  margin-left: 0.5rem;
 }
 
 .page-header h1 {
@@ -244,53 +413,75 @@ onMounted(refresh);
   text-align: center;
 }
 
-.entry-section {
-  margin-bottom: 1.25rem;
+.total-sale-card {
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
 }
 
-.entry-form {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 0.75rem 1rem;
-  align-items: start;
-}
-
-.entry-form .field {
-  margin-bottom: 0;
-}
-
-.checkbox-field {
-  grid-column: 1 / -1;
+.total-sale-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  color: var(--color-text);
-  margin: 0;
+  gap: 1.25rem;
+  flex-wrap: wrap;
 }
 
-.checkbox-field.inline {
+.total-sale-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   flex-shrink: 0;
 }
 
-.checkbox-field input {
-  width: auto;
+.total-sale-label {
+  font-weight: 700;
+  color: var(--color-text);
 }
 
-.entry-form button[type="submit"] {
-  grid-column: 1 / -1;
-  width: fit-content;
+.total-sale-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.search-card {
-  padding: 0.85rem 1rem;
-  margin-bottom: 1rem;
+.total-sale-value {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.edit-bill-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+}
+
+.edit-bill-btn:hover {
+  border-color: var(--color-text-muted);
+}
+
+.unit-label {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.save-status {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
 }
 
 .search-input {
   position: relative;
   display: flex;
   align-items: center;
+  flex: 1 1 200px;
+  min-width: 0;
 }
 
 .search-icon {
@@ -338,41 +529,27 @@ onMounted(refresh);
   margin: 0;
 }
 
-.empty-hint {
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-  margin-top: 0.35rem;
-}
-
-.entry-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.stock-list {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.75rem;
 }
 
-.entry-item {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
+.stock-row {
   background: var(--color-surface);
   border-radius: var(--radius);
   border: 1px solid var(--color-border);
-  padding: 0.75rem 1rem;
-  flex-wrap: wrap;
+  padding: 0.85rem 1rem;
 }
 
-.entry-main {
+.row-main {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex: 1 1 180px;
-  min-width: 0;
+  margin-bottom: 0.6rem;
 }
 
-.entry-name {
+.item-name {
   font-weight: 600;
   color: var(--color-text);
 }
@@ -388,54 +565,124 @@ onMounted(refresh);
   border: 1px solid var(--color-border);
 }
 
-.entry-value {
-  font-size: 0.92rem;
+.row-values {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.25rem;
+}
+
+.value-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 64px;
+}
+
+.value-label {
+  font-size: 0.7rem;
   color: var(--color-text-muted);
-  white-space: nowrap;
+  font-weight: 600;
 }
 
-.entry-item .edit {
-  flex-shrink: 0;
-  font-size: 0.82rem;
-  padding: 0.4rem 0.7rem;
+.value-text {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  padding: 0.35rem 0;
 }
 
-.edit-row {
+.value-text.muted {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.value-input {
+  width: 100%;
+  font-weight: 600;
+  transition: border-color 0.3s;
+}
+
+.value-input.saved {
+  border-color: var(--color-success, #2e7d32);
+}
+
+.closing-input-row {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  flex: 1;
-  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
-.edit-row input[type="number"] {
-  width: 110px;
-}
-
-.edit-unit {
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-}
-
-.edit-actions {
+.same-as-opening-btn {
   display: flex;
-  gap: 0.5rem;
-  margin-left: auto;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
 }
 
-@media (max-width: 560px) {
-  .entry-form {
-    grid-template-columns: 1fr;
+.same-as-opening-btn:hover {
+  border-color: var(--color-text-muted);
+}
+
+.value-group.result .value-text {
+  color: var(--color-primary);
+}
+
+.value-group.result .value-text.positive {
+  color: var(--color-success, #2e7d32);
+}
+
+.value-group.result .value-text.negative {
+  color: var(--color-danger);
+}
+
+.short-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 0.55rem 0 0;
+}
+
+.short-toggle input {
+  width: 16px;
+  height: 16px;
+}
+
+.row-error {
+  color: var(--color-danger);
+  font-size: 0.8rem;
+  margin: 0.4rem 0 0;
+}
+
+@media (max-width: 520px) {
+  .row-values {
+    flex-wrap: wrap;
+    gap: 0.85rem 1rem;
   }
 
-  .entry-item {
+  .value-group {
+    min-width: 40%;
+  }
+
+  .total-sale-row {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .edit-actions {
-    margin-left: 0;
-    justify-content: flex-end;
+  .total-sale-group {
+    justify-content: space-between;
+  }
+
+  .search-input {
+    flex: 1 1 auto;
   }
 }
 </style>

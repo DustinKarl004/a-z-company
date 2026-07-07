@@ -7,7 +7,14 @@ from app.core.database import get_db
 from app.core.deps import require_admin, require_admin_password
 from app.core.scoping import resolve_branch_id
 from app.crud.branches import get_branch
-from app.crud.expenses import create_expense, delete_expense, get_expense, list_expenses
+from app.crud.expenses import (
+    create_expense,
+    delete_expense,
+    get_expense,
+    get_expense_for_day,
+    list_expenses,
+    update_expense,
+)
 from app.models.user import User
 from app.schemas.expense import ExpenseCreate, ExpenseOut
 
@@ -24,14 +31,18 @@ def create_expense_endpoint(
     if get_branch(db, branch_id) is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid branch_id")
 
-    expense = create_expense(
-        db,
-        branch_id=branch_id,
-        date_=payload.date,
-        description=payload.description,
-        amount=payload.amount,
-        created_by_id=user.id,
-    )
+    existing = get_expense_for_day(db, branch_id=branch_id, date_=payload.date)
+    if existing is not None:
+        expense = update_expense(db, existing, amount=payload.amount)
+    else:
+        expense = create_expense(
+            db,
+            branch_id=branch_id,
+            date_=payload.date,
+            description=payload.description,
+            amount=payload.amount,
+            created_by_id=user.id,
+        )
     return ExpenseOut.model_validate(expense)
 
 

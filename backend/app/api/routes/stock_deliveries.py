@@ -53,13 +53,14 @@ def create_delivery_endpoint(
 def list_deliveries_endpoint(
     branch_id: str | None = None,
     date: date_type | None = None,
+    is_short: bool | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_staff_or_admin),
 ) -> list[StockDeliveryOut]:
     effective_branch_id = branch_id if user.role == "admin" else user.branch_id
     return [
         StockDeliveryOut.model_validate(d)
-        for d in list_deliveries(db, branch_id=effective_branch_id, date_=date)
+        for d in list_deliveries(db, branch_id=effective_branch_id, date_=date, is_short=is_short)
     ]
 
 

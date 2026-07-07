@@ -7,11 +7,10 @@ import AdminBranchesView from "../views/AdminBranchesView.vue";
 import AdminStaffView from "../views/AdminStaffView.vue";
 import AdminStockItemsView from "../views/AdminStockItemsView.vue";
 import AdminExpensesView from "../views/AdminExpensesView.vue";
+import AdminNeedsView from "../views/AdminNeedsView.vue";
 import AdminSettingsView from "../views/AdminSettingsView.vue";
 import StaffLayout from "../views/StaffLayout.vue";
 import StaffDeliveriesView from "../views/StaffDeliveriesView.vue";
-import StaffStockCountView from "../views/StaffStockCountView.vue";
-import StaffSalesView from "../views/StaffSalesView.vue";
 import NotFoundView from "../views/NotFoundView.vue";
 
 const routes = [
@@ -27,6 +26,7 @@ const routes = [
       { path: "staff", name: "admin-staff", component: AdminStaffView },
       { path: "stock-items", name: "admin-stock-items", component: AdminStockItemsView },
       { path: "expenses", name: "admin-expenses", component: AdminExpensesView },
+      { path: "needs", name: "admin-needs", component: AdminNeedsView },
       { path: "settings", name: "admin-settings", component: AdminSettingsView },
     ],
   },
@@ -37,8 +37,6 @@ const routes = [
     children: [
       { path: "", redirect: { name: "staff-deliveries" } },
       { path: "deliveries", name: "staff-deliveries", component: StaffDeliveriesView },
-      { path: "stock-count", name: "staff-stock-count", component: StaffStockCountView },
-      { path: "sales", name: "staff-sales", component: StaffSalesView },
     ],
   },
   { path: "/", redirect: "/login" },

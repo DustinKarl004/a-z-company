@@ -7,7 +7,14 @@ from app.core.database import get_db
 from app.core.deps import require_staff_or_admin
 from app.core.scoping import ensure_creatable_date, ensure_editable, resolve_branch_id
 from app.crud.branches import get_branch
-from app.crud.sales import create_sale, get_sale, list_sales, update_sale
+from app.crud.sales import (
+    create_sale,
+    get_sale,
+    get_total_sale_for_day,
+    list_sales,
+    update_sale,
+    update_sale_amount,
+)
 from app.crud.stock_items import get_stock_item
 from app.models.user import User
 from app.schemas.sale import SaleCreate, SaleOut, SaleUpdate
@@ -24,10 +31,31 @@ def create_sale_endpoint(
     branch_id = resolve_branch_id(user, payload.branch_id)
     if get_branch(db, branch_id) is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid branch_id")
+    ensure_creatable_date(user, payload.date)
+
+    if payload.item_id is None:
+        if payload.amount is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="amount is required")
+        existing = get_total_sale_for_day(db, branch_id=branch_id, date_=payload.date)
+        if existing is not None:
+            sale = update_sale_amount(db, existing, amount=payload.amount)
+        else:
+            sale = create_sale(
+                db,
+                branch_id=branch_id,
+                item_id=None,
+                date_=payload.date,
+                quantity_sold=0,
+                amount=payload.amount,
+                created_by_id=user.id,
+            )
+        return SaleOut.model_validate(sale)
+
     item = get_stock_item(db, payload.item_id)
     if item is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid item_id")
-    ensure_creatable_date(user, payload.date)
+    if payload.quantity_sold is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="quantity_sold is required")
 
     sale = create_sale(
         db,
@@ -68,6 +96,14 @@ def update_sale_endpoint(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your branch")
     ensure_editable(user, sale.date)
 
+    if sale.item_id is None:
+        if payload.amount is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="amount is required")
+        updated = update_sale_amount(db, sale, amount=payload.amount)
+        return SaleOut.model_validate(updated)
+
+    if payload.quantity_sold is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="quantity_sold is required")
     item = get_stock_item(db, sale.item_id)
     updated = update_sale(
         db, sale, quantity_sold=payload.quantity_sold, amount=payload.quantity_sold * item.price

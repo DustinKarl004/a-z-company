@@ -5,9 +5,51 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.branch import Branch
+from app.models.expense import Expense
 from app.models.sale import Sale
+from app.models.stock_count import StockCount
 from app.models.stock_delivery import StockDelivery
+from app.models.stock_item import StockItem
 from app.models.user import User
+
+
+def _stock_expense_total(db: Session, branch_id: str, start: date_type, end: date_type) -> float:
+    """Cost of stock consumed (opening + delivered - closing) * price, mirroring the
+    Expenses page's per-item stock expense calculation."""
+    closing_rows = db.execute(
+        select(StockCount.item_id, StockCount.quantity_remaining).where(
+            StockCount.branch_id == branch_id, StockCount.date == end
+        )
+    ).all()
+    if not closing_rows:
+        return 0.0
+    closing_map = dict(closing_rows)
+
+    opening_rows = db.execute(
+        select(StockCount.item_id, StockCount.quantity_remaining).where(
+            StockCount.branch_id == branch_id, StockCount.date == start - timedelta(days=1)
+        )
+    ).all()
+    opening_map = dict(opening_rows)
+
+    delivery_rows = db.execute(
+        select(StockDelivery.item_id, func.sum(StockDelivery.quantity_delivered))
+        .where(StockDelivery.branch_id == branch_id, StockDelivery.date >= start, StockDelivery.date <= end)
+        .group_by(StockDelivery.item_id)
+    ).all()
+    delivery_map = dict(delivery_rows)
+
+    prices = dict(
+        db.execute(select(StockItem.id, StockItem.price).where(StockItem.id.in_(closing_map.keys()))).all()
+    )
+
+    total = 0.0
+    for item_id, closing in closing_map.items():
+        opening = opening_map.get(item_id, 0.0)
+        delivered = delivery_map.get(item_id, 0.0)
+        used = opening + delivered - closing
+        total += used * prices.get(item_id, 0.0)
+    return total
 
 
 def _branch_summary(db: Session, branch: Branch, start: date_type, end: date_type) -> dict:
@@ -16,6 +58,12 @@ def _branch_summary(db: Session, branch: Branch, start: date_type, end: date_typ
             Sale.branch_id == branch.id, Sale.date >= start, Sale.date <= end
         )
     )
+    total_bills = db.scalar(
+        select(func.coalesce(func.sum(Expense.amount), 0.0)).where(
+            Expense.branch_id == branch.id, Expense.date >= start, Expense.date <= end
+        )
+    )
+    total_expenses = _stock_expense_total(db, branch.id, start, end) + total_bills
     has_shortfall = (
         db.scalar(
             select(StockDelivery.id).where(
@@ -32,6 +80,8 @@ def _branch_summary(db: Session, branch: Branch, start: date_type, end: date_typ
         "branch_id": branch.id,
         "branch_name": branch.name,
         "total_sales": total_sales,
+        "total_expenses": total_expenses,
+        "profit": total_sales - total_expenses,
         "has_shortfall": has_shortfall,
     }
 
@@ -50,6 +100,8 @@ def overview(db: Session) -> dict:
         "staff_count": staff_count,
         "branches": branch_summaries,
         "total_sales": sum(b["total_sales"] for b in branch_summaries),
+        "total_expenses": sum(b["total_expenses"] for b in branch_summaries),
+        "total_profit": sum(b["profit"] for b in branch_summaries),
     }
 
 
@@ -90,5 +142,7 @@ def monthly(db: Session, year: int, month: int) -> dict:
         "month": month,
         "branches": branch_summaries,
         "total_sales": sum(b["total_sales"] for b in branch_summaries),
+        "total_expenses": sum(b["total_expenses"] for b in branch_summaries),
+        "total_profit": sum(b["profit"] for b in branch_summaries),
         "daily": _daily_breakdown(db, branches, start, end),
     }

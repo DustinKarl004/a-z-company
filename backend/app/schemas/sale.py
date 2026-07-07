@@ -5,13 +5,15 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class SaleCreate(BaseModel):
     branch_id: str | None = None
-    item_id: str
+    item_id: str | None = None
     date: date_type = Field(default_factory=date_type.today)
-    quantity_sold: float
+    quantity_sold: float | None = None
+    amount: float | None = None
 
 
 class SaleUpdate(BaseModel):
-    quantity_sold: float
+    quantity_sold: float | None = None
+    amount: float | None = None
 
 
 class SaleOut(BaseModel):
@@ -19,7 +21,7 @@ class SaleOut(BaseModel):
 
     id: str
     branch_id: str
-    item_id: str
+    item_id: str | None = None
     date: date_type
     quantity_sold: float
     amount: float

@@ -41,6 +41,19 @@ def get_expense(db: Session, expense_id: str) -> Expense | None:
     return db.get(Expense, expense_id)
 
 
+def get_expense_for_day(db: Session, *, branch_id: str, date_: date) -> Expense | None:
+    return db.scalar(
+        select(Expense).where(Expense.branch_id == branch_id, Expense.date == date_)
+    )
+
+
+def update_expense(db: Session, expense: Expense, *, amount: float) -> Expense:
+    expense.amount = amount
+    db.commit()
+    db.refresh(expense)
+    return expense
+
+
 def delete_expense(db: Session, expense: Expense) -> None:
     db.delete(expense)
     db.commit()

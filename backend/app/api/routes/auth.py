@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import create_access_token, verify_password, verify_totp_code
+from app.crud.branches import get_branch
 from app.crud.users import consume_backup_code, get_user_by_email
 from app.schemas.auth import LoginRequest, TokenResponse
 
@@ -29,5 +30,11 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
                 detail="Valid authenticator code required",
             )
 
-    token = create_access_token(user_id=user.id, role=user.role, branch_id=user.branch_id)
+    branch = get_branch(db, user.branch_id) if user.branch_id else None
+    token = create_access_token(
+        user_id=user.id,
+        role=user.role,
+        branch_id=user.branch_id,
+        branch_name=branch.name if branch else None,
+    )
     return TokenResponse(access_token=token)

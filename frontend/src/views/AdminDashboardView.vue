@@ -16,7 +16,7 @@ const selectedYear = ref(now.getFullYear());
 const selectedMonth = ref(now.getMonth() + 1);
 
 function peso(amount) {
-  return `₱${amount.toFixed(2)}`;
+  return `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function niceMax(value) {
@@ -48,7 +48,7 @@ watch([selectedYear, selectedMonth], loadMonthly);
 
 const alertCount = computed(() => overview.value?.branches.filter((b) => b.has_shortfall).length || 0);
 
-// --- Bar chart: sales today by branch ---
+// --- Bar chart: profit today by branch ---
 const BAR_CHART_W = 600;
 const BAR_CHART_H = 220;
 const BAR_MARGIN = { top: 24, right: 16, bottom: 28, left: 16 };
@@ -57,17 +57,17 @@ const barChart = computed(() => {
   const branches = overview.value?.branches || [];
   const innerW = BAR_CHART_W - BAR_MARGIN.left - BAR_MARGIN.right;
   const innerH = BAR_CHART_H - BAR_MARGIN.top - BAR_MARGIN.bottom;
-  const maxVal = niceMax(Math.max(...branches.map((b) => b.total_sales), 0));
+  const maxVal = niceMax(Math.max(...branches.map((b) => b.profit), 0));
   const bandWidth = branches.length ? innerW / branches.length : innerW;
   const barWidth = Math.min(40, bandWidth * 0.5);
 
   const bars = branches.map((b, i) => {
     const bandCenter = BAR_MARGIN.left + bandWidth * (i + 0.5);
-    const barHeight = maxVal > 0 ? (b.total_sales / maxVal) * innerH : 0;
+    const barHeight = maxVal > 0 ? (Math.max(b.profit, 0) / maxVal) * innerH : 0;
     return {
       id: b.branch_id,
       name: b.branch_name,
-      value: b.total_sales,
+      value: b.profit,
       hasShortfall: b.has_shortfall,
       x: bandCenter - barWidth / 2,
       y: BAR_MARGIN.top + innerH - barHeight,
@@ -186,14 +186,14 @@ const hoverTooltip = computed(() => {
       </div>
 
       <div class="card chart-card" v-if="overview.branches.length">
-        <h2 class="card-title">Sales today by branch</h2>
+        <h2 class="card-title">Daily profit by branch</h2>
         <div class="chart-scroll">
           <svg
             class="bar-chart"
             :viewBox="`0 0 ${BAR_CHART_W} ${BAR_CHART_H}`"
             preserveAspectRatio="xMidYMid meet"
             role="img"
-            aria-label="Bar chart of today's sales per branch"
+            aria-label="Bar chart of today's profit per branch"
           >
             <defs>
               <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
@@ -274,7 +274,7 @@ const hoverTooltip = computed(() => {
                   :y="g.y + 3"
                   text-anchor="end"
                 >
-                  {{ Math.round(g.value) }}
+                  {{ Math.round(g.value).toLocaleString("en-PH") }}
                 </text>
                 <text
                   v-for="l in lineChart.xLabels"

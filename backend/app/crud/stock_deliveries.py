@@ -31,13 +31,19 @@ def create_delivery(
 
 
 def list_deliveries(
-    db: Session, *, branch_id: str | None = None, date_: date | None = None
+    db: Session,
+    *,
+    branch_id: str | None = None,
+    date_: date | None = None,
+    is_short: bool | None = None,
 ) -> list[StockDelivery]:
     stmt = select(StockDelivery)
     if branch_id:
         stmt = stmt.where(StockDelivery.branch_id == branch_id)
     if date_:
         stmt = stmt.where(StockDelivery.date == date_)
+    if is_short is not None:
+        stmt = stmt.where(StockDelivery.is_short.is_(is_short))
     return list(db.scalars(stmt.order_by(StockDelivery.date.desc())))
 
 

@@ -5,6 +5,8 @@ class BranchSummary(BaseModel):
     branch_id: str
     branch_name: str
     total_sales: float
+    total_expenses: float
+    profit: float
     has_shortfall: bool
 
 
@@ -14,6 +16,8 @@ class OverviewResponse(BaseModel):
     staff_count: int
     branches: list[BranchSummary]
     total_sales: float
+    total_expenses: float
+    total_profit: float
 
 
 class DailyPoint(BaseModel):
@@ -27,4 +31,6 @@ class MonthlyResponse(BaseModel):
     month: int
     branches: list[BranchSummary]
     total_sales: float
+    total_expenses: float
+    total_profit: float
     daily: list[DailyPoint]

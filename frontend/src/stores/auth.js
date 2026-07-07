@@ -22,6 +22,9 @@ export const useAuthStore = defineStore("auth", {
     branchId() {
       return this.user?.branch_id || null;
     },
+    branchName() {
+      return this.user?.branch_name || null;
+    },
   },
 
   actions: {

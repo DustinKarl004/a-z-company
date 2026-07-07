@@ -15,3 +15,14 @@ export function createSale({ itemId, quantitySold }) {
 export function updateSale(id, quantitySold) {
   return apiFetch(`/sales/${id}`, { method: "PATCH", body: { quantity_sold: quantitySold } });
 }
+
+export function createTotalSale({ date, amount }) {
+  return apiFetch("/sales", {
+    method: "POST",
+    body: { date, amount },
+  });
+}
+
+export function updateTotalSale(id, amount) {
+  return apiFetch(`/sales/${id}`, { method: "PATCH", body: { amount } });
+}
