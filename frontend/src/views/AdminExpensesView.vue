@@ -1,20 +1,22 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import * as XLSX from "xlsx-js-style";
 import { listBranches } from "../api/branches";
 import { ApiError } from "../api/client";
-import { createExpense, listExpenses } from "../api/expenses";
+import { createExpense, deleteMonthData, listExpenses } from "../api/expenses";
 import { createTotalSale, listSales, updateTotalSale } from "../api/sales";
 import { listStockItems } from "../api/stockItems";
 import { createStockCount, listStockCounts, updateStockCount } from "../api/stockCounts";
 import { createStockDelivery, listStockDeliveries, updateStockDelivery } from "../api/stockDeliveries";
+import ConfirmDeleteModal from "../components/ConfirmDeleteModal.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import CustomSelect from "../components/CustomSelect.vue";
 import Icon from "../components/Icon.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Modal from "../components/Modal.vue";
+import { todayLocalISO } from "../utils/date";
 
-const today = new Date().toISOString().slice(0, 10);
+const today = todayLocalISO();
 
 const branches = ref([]);
 const selectedDate = ref(today);
@@ -542,6 +544,113 @@ const exportMonth = now.getMonth();
 const exportMonthLabel = now.toLocaleString("en-US", { month: "long", year: "numeric" });
 const exportDaysInMonth = new Date(exportYear, exportMonth + 1, 0).getDate();
 
+function monthValue(y, m) {
+  return `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(value) {
+  const [y, m] = value.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+}
+
+const MONTH_ABBR = Array.from({ length: 12 }, (_, i) =>
+  new Date(2000, i, 1).toLocaleString("en-US", { month: "short" })
+);
+
+const showDeleteMonthPanel = ref(false);
+const deleteMonthPanelRoot = ref(null);
+const selectedDeleteMonths = ref([]);
+const calendarYear = ref(exportYear);
+
+const isCurrentOrFutureCalendarYear = computed(() => calendarYear.value >= exportYear);
+
+function isCalendarMonthDisabled(monthIndex) {
+  return calendarYear.value > exportYear || (calendarYear.value === exportYear && monthIndex >= exportMonth);
+}
+
+function isCalendarMonthSelected(monthIndex) {
+  return selectedDeleteMonths.value.includes(monthValue(calendarYear.value, monthIndex));
+}
+
+function toggleCalendarMonth(monthIndex) {
+  if (isCalendarMonthDisabled(monthIndex)) return;
+  const value = monthValue(calendarYear.value, monthIndex);
+  const idx = selectedDeleteMonths.value.indexOf(value);
+  if (idx >= 0) selectedDeleteMonths.value.splice(idx, 1);
+  else selectedDeleteMonths.value.push(value);
+}
+
+function goToPrevCalendarYear() {
+  calendarYear.value -= 1;
+}
+
+function goToNextCalendarYear() {
+  if (!isCurrentOrFutureCalendarYear.value) calendarYear.value += 1;
+}
+
+const selectedDeleteMonthsLabel = computed(() => {
+  if (!selectedDeleteMonths.value.length) return "Select months";
+  if (selectedDeleteMonths.value.length === 1) return monthLabel(selectedDeleteMonths.value[0]);
+  return `${selectedDeleteMonths.value.length} months selected`;
+});
+
+const selectedDeleteMonthsListLabel = computed(() =>
+  selectedDeleteMonths.value.map(monthLabel).join(", ")
+);
+
+function toggleDeleteMonthPanel() {
+  showDeleteMonthPanel.value = !showDeleteMonthPanel.value;
+}
+
+function onDeleteMonthPanelClickOutside(e) {
+  if (deleteMonthPanelRoot.value?.contains(e.target)) return;
+  showDeleteMonthPanel.value = false;
+}
+
+watch(showDeleteMonthPanel, (isOpen) => {
+  if (isOpen) document.addEventListener("mousedown", onDeleteMonthPanelClickOutside);
+  else document.removeEventListener("mousedown", onDeleteMonthPanelClickOutside);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("mousedown", onDeleteMonthPanelClickOutside);
+});
+
+const showDeleteOldMonthModal = ref(false);
+const deletingOldMonth = ref(false);
+const deleteOldMonthError = ref("");
+
+function openDeleteOldMonthModal() {
+  if (!selectedDeleteMonths.value.length) return;
+  deleteOldMonthError.value = "";
+  showDeleteMonthPanel.value = false;
+  showDeleteOldMonthModal.value = true;
+}
+
+function cancelDeleteOldMonth() {
+  if (deletingOldMonth.value) return;
+  showDeleteOldMonthModal.value = false;
+}
+
+async function confirmDeleteOldMonth(password) {
+  deletingOldMonth.value = true;
+  deleteOldMonthError.value = "";
+  try {
+    for (const value of selectedDeleteMonths.value) {
+      const [year, month] = value.split("-").map(Number);
+      await deleteMonthData(year, month, password);
+    }
+    selectedDeleteMonths.value = [];
+    showDeleteOldMonthModal.value = false;
+    await Promise.all([refresh(), refreshStockExpense()]);
+  } catch (e) {
+    deleteOldMonthError.value =
+      e instanceof ApiError ? e.detail || "Could not delete month data" : "Could not delete month data";
+  } finally {
+    deletingOldMonth.value = false;
+  }
+}
+
 async function fetchDayReport(dateStr, items) {
   const params = { date: dateStr };
   const openingParams = { date: previousDay(dateStr) };
@@ -790,6 +899,57 @@ watch([selectedDate, selectedBranchId], () => {
         <Icon name="download" :size="14" />
         {{ exporting ? "Exporting..." : "Export Excel" }}
       </button>
+      <div class="delete-month-group" ref="deleteMonthPanelRoot">
+        <button type="button" class="secondary month-multiselect-trigger" @click="toggleDeleteMonthPanel">
+          <span>{{ selectedDeleteMonthsLabel }}</span>
+          <svg class="chevron" width="12" height="8" viewBox="0 0 12 8" fill="none">
+            <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="secondary danger-outline"
+          :disabled="!selectedDeleteMonths.length"
+          @click="openDeleteOldMonthModal"
+        >
+          <Icon name="trash" :size="14" />
+          Delete
+        </button>
+
+        <div v-if="showDeleteMonthPanel" class="month-calendar-panel">
+          <div class="month-calendar-header">
+            <button type="button" class="month-calendar-nav" @click="goToPrevCalendarYear">
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <path d="M8 1L3 6L8 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <span class="month-calendar-year">{{ calendarYear }}</span>
+            <button
+              type="button"
+              class="month-calendar-nav"
+              :disabled="isCurrentOrFutureCalendarYear"
+              @click="goToNextCalendarYear"
+            >
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <path d="M4 1L9 6L4 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+          <div class="month-calendar-grid">
+            <button
+              v-for="(abbr, idx) in MONTH_ABBR"
+              :key="idx"
+              type="button"
+              class="month-calendar-cell"
+              :class="{ selected: isCalendarMonthSelected(idx) }"
+              :disabled="isCalendarMonthDisabled(idx)"
+              @click="toggleCalendarMonth(idx)"
+            >
+              {{ abbr }}
+            </button>
+          </div>
+        </div>
+      </div>
       <input v-model="selectedDate" type="date" />
       <CustomSelect v-model="selectedBranchId" :options="branchOptions" placeholder="All branches" />
     </div>
@@ -1003,6 +1163,18 @@ watch([selectedDate, selectedBranchId], () => {
     @cancel="showExportConfirm = false"
   />
 
+  <ConfirmDeleteModal
+    :open="showDeleteOldMonthModal"
+    title="Delete old month data?"
+    :message="`This will permanently delete all stock (opening, delivery, closing), expenses, sales, and daily billing/profit data for ${selectedDeleteMonthsListLabel}, except each month's last day closing count (kept as the next month's opening). This cannot be undone.`"
+    confirm-label="Delete"
+    loading-label="Deleting..."
+    :loading="deletingOldMonth"
+    :error="deleteOldMonthError"
+    @confirm="confirmDeleteOldMonth"
+    @cancel="cancelDeleteOldMonth"
+  />
+
   <Modal v-if="exporting" title="Exporting Excel" @close="() => {}">
     <div class="export-progress">
       <span class="loading-spinner" aria-hidden="true"></span>
@@ -1056,6 +1228,131 @@ watch([selectedDate, selectedBranchId], () => {
   align-items: center;
   gap: 0.4rem;
   white-space: nowrap;
+}
+
+.delete-month-group {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.month-multiselect-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 150px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  border-radius: var(--radius) 0 0 var(--radius);
+  border-right: none;
+}
+
+.month-multiselect-trigger .chevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.delete-month-group > button.danger-outline {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.month-calendar-panel {
+  position: absolute;
+  z-index: 200;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 220px;
+  padding: 0.6rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.month-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.month-calendar-year {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.month-calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text);
+}
+
+.month-calendar-nav:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.month-calendar-nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.month-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+
+.month-calendar-cell {
+  padding: 0.55rem 0;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.month-calendar-cell:hover:not(:disabled):not(.selected) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.month-calendar-cell.selected {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+
+.month-calendar-cell.selected:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.month-calendar-cell:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.danger-outline {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.danger-outline:hover {
+  background: var(--color-danger);
+  color: #fff;
 }
 
 .top-error {

@@ -9,11 +9,16 @@ import { useAuthStore } from "../stores/auth";
 import Icon from "../components/Icon.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Modal from "../components/Modal.vue";
+import { toLocalISO, todayLocalISO } from "../utils/date";
 
 const auth = useAuthStore();
 
-const today = new Date().toISOString().slice(0, 10);
-const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const today = todayLocalISO();
+const yesterday = (() => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return toLocalISO(d);
+})();
 const todayLabel = new Date().toLocaleDateString(undefined, {
   weekday: "long",
   month: "long",

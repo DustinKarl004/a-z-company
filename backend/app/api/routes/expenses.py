@@ -3,6 +3,7 @@ from datetime import date as date_type
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.clock import local_today
 from app.core.database import get_db
 from app.core.deps import require_admin, require_admin_password
 from app.core.scoping import resolve_branch_id
@@ -10,6 +11,7 @@ from app.crud.branches import get_branch
 from app.crud.expenses import (
     create_expense,
     delete_expense,
+    delete_month_data,
     get_expense,
     get_expense_for_day,
     list_expenses,
@@ -53,6 +55,23 @@ def list_expenses_endpoint(
     db: Session = Depends(get_db),
 ) -> list[ExpenseOut]:
     return [ExpenseOut.model_validate(e) for e in list_expenses(db, branch_id=branch_id, date_=date)]
+
+
+@router.delete("/month", status_code=204)
+def delete_month_data_endpoint(
+    year: int,
+    month: int,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_admin_password),
+) -> None:
+    if not 1 <= month <= 12:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid month")
+    today = local_today()
+    if (year, month) >= (today.year, today.month):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Can only delete data from a past month"
+        )
+    delete_month_data(db, year=year, month=month)
 
 
 @router.delete("/{expense_id}", status_code=204)

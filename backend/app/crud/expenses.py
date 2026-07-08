@@ -1,9 +1,13 @@
+import calendar
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models.expense import Expense
+from app.models.sale import Sale
+from app.models.stock_count import StockCount
+from app.models.stock_delivery import StockDelivery
 
 
 def create_expense(
@@ -56,4 +60,18 @@ def update_expense(db: Session, expense: Expense, *, amount: float) -> Expense:
 
 def delete_expense(db: Session, expense: Expense) -> None:
     db.delete(expense)
+    db.commit()
+
+
+def delete_month_data(db: Session, *, year: int, month: int) -> None:
+    """Delete expenses, sales, stock counts, and stock deliveries for every branch
+    in the given month (used to clear out old data once it's no longer needed).
+
+    The stock count on the last day of the month is kept, since it's the
+    "opening" figure for the 1st day of the following month."""
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    for model in (Expense, Sale, StockDelivery):
+        db.execute(delete(model).where(model.date >= start, model.date <= end))
+    db.execute(delete(StockCount).where(StockCount.date >= start, StockCount.date < end))
     db.commit()

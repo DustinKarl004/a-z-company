@@ -4,6 +4,7 @@ from datetime import date as date_type, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.clock import local_today
 from app.models.branch import Branch
 from app.models.expense import Expense
 from app.models.sale import Sale
@@ -87,7 +88,7 @@ def _branch_summary(db: Session, branch: Branch, start: date_type, end: date_typ
 
 
 def overview(db: Session) -> dict:
-    today = date_type.today()
+    today = local_today()
     branches = list(db.scalars(select(Branch).order_by(Branch.name)))
     branch_summaries = [_branch_summary(db, b, today, today) for b in branches]
 

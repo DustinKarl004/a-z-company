@@ -89,6 +89,108 @@ def test_delete_expense(client, admin_token, branch):
     assert resp.status_code == 404
 
 
+def test_delete_month_data(client, admin_token, branch):
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    may_expense = client.post(
+        "/expenses",
+        json={"branch_id": branch.id, "description": "Ice", "amount": 100.0, "date": "2026-05-15"},
+        headers=admin_headers,
+    ).json()
+    june_expense = client.post(
+        "/expenses",
+        json={"branch_id": branch.id, "description": "Water", "amount": 50.0, "date": "2026-06-15"},
+        headers=admin_headers,
+    ).json()
+
+    resp = client.request(
+        "DELETE",
+        "/expenses/month",
+        params={"year": 2026, "month": 5},
+        json={"password": "adminpass123"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 204
+
+    resp = client.get("/expenses", headers=admin_headers)
+    remaining_ids = {e["id"] for e in resp.json()}
+    assert may_expense["id"] not in remaining_ids
+    assert june_expense["id"] in remaining_ids
+
+
+def test_delete_month_data_keeps_last_day_stock_count(client, admin_token, branch, stock_item):
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    mid_month_count = client.post(
+        "/stock-counts",
+        json={"branch_id": branch.id, "item_id": stock_item.id, "date": "2026-05-15", "quantity_remaining": 10},
+        headers=admin_headers,
+    ).json()
+    last_day_count = client.post(
+        "/stock-counts",
+        json={"branch_id": branch.id, "item_id": stock_item.id, "date": "2026-05-31", "quantity_remaining": 5},
+        headers=admin_headers,
+    ).json()
+
+    resp = client.request(
+        "DELETE",
+        "/expenses/month",
+        params={"year": 2026, "month": 5},
+        json={"password": "adminpass123"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 204
+
+    resp = client.get("/stock-counts", headers=admin_headers)
+    remaining_ids = {c["id"] for c in resp.json()}
+    assert mid_month_count["id"] not in remaining_ids
+    assert last_day_count["id"] in remaining_ids
+
+
+def test_delete_month_data_rejects_current_and_future_month(client, admin_token, branch):
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    today = date.today()
+
+    resp = client.request(
+        "DELETE",
+        "/expenses/month",
+        params={"year": today.year, "month": today.month},
+        json={"password": "adminpass123"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 400
+
+    next_month = today.month + 1 if today.month < 12 else 1
+    next_year = today.year if today.month < 12 else today.year + 1
+    resp = client.request(
+        "DELETE",
+        "/expenses/month",
+        params={"year": next_year, "month": next_month},
+        json={"password": "adminpass123"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 400
+
+
+def test_delete_month_data_requires_correct_password(client, admin_token, branch):
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    client.post(
+        "/expenses",
+        json={"branch_id": branch.id, "description": "Ice", "amount": 100.0, "date": "2026-05-15"},
+        headers=admin_headers,
+    )
+
+    resp = client.request(
+        "DELETE",
+        "/expenses/month",
+        params={"year": 2026, "month": 5},
+        json={"password": "wrongpass"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 401
+
+    resp = client.get("/expenses", headers=admin_headers)
+    assert len(resp.json()) == 1
+
+
 def test_delete_expense_requires_correct_password(client, admin_token, branch):
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
     resp = client.post(

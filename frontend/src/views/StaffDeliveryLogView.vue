@@ -6,11 +6,12 @@ import { listStockItems } from "../api/stockItems";
 import { listStockDeliveries, updateStockDelivery } from "../api/stockDeliveries";
 import Icon from "../components/Icon.vue";
 import LoadingState from "../components/LoadingState.vue";
+import { toLocalISO } from "../utils/date";
 
 const RETENTION_DAYS = 3;
 
 function toDateStr(d) {
-  return d.toISOString().slice(0, 10);
+  return toLocalISO(d);
 }
 
 const dayList = Array.from({ length: RETENTION_DAYS }, (_, i) => {

@@ -14,3 +14,10 @@ export function createExpense({ branchId, date, description, amount }) {
 export function deleteExpense(id, password) {
   return apiFetch(`/expenses/${id}`, { method: "DELETE", body: { password } });
 }
+
+export function deleteMonthData(year, month, password) {
+  return apiFetch(`/expenses/month${buildQuery({ year, month })}`, {
+    method: "DELETE",
+    body: { password },
+  });
+}
