@@ -270,7 +270,7 @@ onMounted(refresh);
         <span v-if="auth.branchName" class="branch-chip">{{ auth.branchName }}</span>
       </p>
     </div>
-    <span v-if="!loading" class="count-chip"><Icon name="count" :size="14" /> {{ loggedTodayCount }} logged today</span>
+    <span v-if="!loading" class="count-chip"><Icon name="count" :size="14" /> {{ loggedTodayCount }}/{{ stockItems.length }} logged today</span>
   </div>
 
   <p v-if="error" class="error-message top-error">{{ error }}</p>

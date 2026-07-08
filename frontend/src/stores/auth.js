@@ -38,6 +38,11 @@ export const useAuthStore = defineStore("auth", {
       localStorage.setItem(STORAGE_KEY, access_token);
     },
 
+    setToken(token) {
+      this.token = token;
+      localStorage.setItem(STORAGE_KEY, token);
+    },
+
     logout() {
       this.token = null;
       localStorage.removeItem(STORAGE_KEY);

@@ -1,12 +1,15 @@
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import AccountSettingsModal from "../components/AccountSettingsModal.vue";
+import Icon from "../components/Icon.vue";
 
 const auth = useAuthStore();
 const router = useRouter();
 
 const showTabs = computed(() => auth.staffRoles.length > 1);
+const showSettings = ref(false);
 
 function onLogout() {
   auth.logout();
@@ -25,15 +28,22 @@ function onLogout() {
         </div>
       </div>
 
-      <button type="button" class="logout-btn" @click="onLogout">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-          <polyline points="16 17 21 12 16 7" />
-          <line x1="21" y1="12" x2="9" y2="12" />
-        </svg>
-        Log out
-      </button>
+      <div class="header-actions">
+        <button type="button" class="settings-btn" aria-label="Account settings" @click="showSettings = true">
+          <Icon name="settings" :size="16" />
+        </button>
+        <button type="button" class="logout-btn" @click="onLogout">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          Log out
+        </button>
+      </div>
     </header>
+
+    <AccountSettingsModal v-if="showSettings" @close="showSettings = false" />
 
     <nav v-if="showTabs" class="staff-tabs">
       <router-link
@@ -113,6 +123,31 @@ function onLogout() {
   color: var(--color-accent);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.settings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.settings-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .logout-btn {
