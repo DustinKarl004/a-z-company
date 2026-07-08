@@ -8,6 +8,7 @@ import { createTotalSale, listSales, updateTotalSale } from "../api/sales";
 import { useAuthStore } from "../stores/auth";
 import Icon from "../components/Icon.vue";
 import LoadingState from "../components/LoadingState.vue";
+import Modal from "../components/Modal.vue";
 
 const auth = useAuthStore();
 
@@ -39,7 +40,11 @@ const loading = ref(true);
 const error = ref("");
 const search = ref("");
 
-const totalSale = reactive({ id: null, amount: "", saving: false, saved: false, error: "", editing: false });
+const totalSale = reactive({ id: null, amount: "", touched: false, saving: false, saved: false, error: "", editing: false });
+
+const submitting = ref(false);
+const submitError = ref("");
+const showThankYou = ref(false);
 
 function peso(amount) {
   return `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -53,12 +58,14 @@ function rowFor(itemId) {
     rows[itemId] = {
       opening: null,
       delivery: "",
+      deliveryTouched: false,
       deliveryId: null,
       isShort: false,
       deliverySaving: false,
       deliverySaved: false,
       deliveryError: "",
       closing: "",
+      closingTouched: false,
       closingId: null,
       closingSaving: false,
       closingSaved: false,
@@ -90,9 +97,9 @@ const loggedTodayCount = computed(
 function kilogramUsed(itemId) {
   const r = rows[itemId];
   if (!r) return null;
-  if (r.delivery === "" || r.closing === "") return null;
+  if (r.closing === "") return null;
   const opening = Number(r.opening) || 0;
-  const delivery = Number(r.delivery);
+  const delivery = r.delivery === "" ? 0 : Number(r.delivery);
   const closing = Number(r.closing);
   if (Number.isNaN(delivery) || Number.isNaN(closing)) return null;
   return opening + delivery - closing;
@@ -148,13 +155,14 @@ function flashSaved(r, field) {
 
 async function saveTotalSale() {
   totalSale.error = "";
-  if (totalSale.amount === "" || Number.isNaN(Number(totalSale.amount))) return;
+  if (Number.isNaN(Number(totalSale.amount))) return;
+  const amount = totalSale.amount === "" ? 0 : Number(totalSale.amount);
   totalSale.saving = true;
   try {
     if (totalSale.id) {
-      await updateTotalSale(totalSale.id, Number(totalSale.amount));
+      await updateTotalSale(totalSale.id, amount);
     } else {
-      const created = await createTotalSale({ date: today, amount: Number(totalSale.amount) });
+      const created = await createTotalSale({ date: today, amount });
       totalSale.id = created.id;
     }
     totalSale.editing = false;
@@ -172,18 +180,19 @@ async function saveTotalSale() {
 async function saveDelivery(itemId) {
   const r = rowFor(itemId);
   r.deliveryError = "";
-  if (r.delivery === "" || Number.isNaN(Number(r.delivery))) return;
+  if (Number.isNaN(Number(r.delivery))) return;
+  const quantity = r.delivery === "" ? 0 : Number(r.delivery);
   r.deliverySaving = true;
   try {
     if (r.deliveryId) {
       await updateStockDelivery(r.deliveryId, {
-        quantity_delivered: Number(r.delivery),
+        quantity_delivered: quantity,
         is_short: r.isShort,
       });
     } else {
       const created = await createStockDelivery({
         itemId,
-        quantityDelivered: Number(r.delivery),
+        quantityDelivered: quantity,
         isShort: r.isShort,
       });
       r.deliveryId = created.id;
@@ -196,38 +205,17 @@ async function saveDelivery(itemId) {
   }
 }
 
-async function saveShortFlag(itemId) {
-  const r = rowFor(itemId);
-  r.deliveryError = "";
-  const quantity = r.delivery === "" || Number.isNaN(Number(r.delivery)) ? 0 : Number(r.delivery);
-  r.deliverySaving = true;
-  try {
-    if (r.deliveryId) {
-      await updateStockDelivery(r.deliveryId, { quantity_delivered: quantity, is_short: r.isShort });
-    } else {
-      const created = await createStockDelivery({ itemId, quantityDelivered: quantity, isShort: r.isShort });
-      r.deliveryId = created.id;
-      r.delivery = String(quantity);
-    }
-    flashSaved(r, "delivery");
-  } catch (e) {
-    r.isShort = !r.isShort;
-    r.deliveryError = e instanceof ApiError ? e.detail || "Could not save" : "Could not save";
-  } finally {
-    r.deliverySaving = false;
-  }
-}
-
 async function saveClosing(itemId) {
   const r = rowFor(itemId);
   r.closingError = "";
-  if (r.closing === "" || Number.isNaN(Number(r.closing))) return;
+  if (Number.isNaN(Number(r.closing))) return;
+  const quantity = r.closing === "" ? 0 : Number(r.closing);
   r.closingSaving = true;
   try {
     if (r.closingId) {
-      await updateStockCount(r.closingId, { quantity_remaining: Number(r.closing) });
+      await updateStockCount(r.closingId, { quantity_remaining: quantity });
     } else {
-      const created = await createStockCount({ itemId, quantityRemaining: Number(r.closing) });
+      const created = await createStockCount({ itemId, quantityRemaining: quantity });
       r.closingId = created.id;
     }
     flashSaved(r, "closing");
@@ -241,7 +229,28 @@ async function saveClosing(itemId) {
 function useOpeningAsClosing(itemId) {
   const r = rowFor(itemId);
   r.closing = String(r.opening ?? 0);
-  saveClosing(itemId);
+  r.closingTouched = true;
+}
+
+async function submitAll() {
+  submitError.value = "";
+  submitting.value = true;
+  try {
+    if (totalSale.touched) await saveTotalSale();
+    for (const item of stockItems.value) {
+      const r = rowFor(item.id);
+      if (r.deliveryTouched) await saveDelivery(item.id);
+      if (r.closingTouched) await saveClosing(item.id);
+    }
+    const hasError = totalSale.error || Object.values(rows).some((r) => r.deliveryError || r.closingError);
+    if (hasError) {
+      submitError.value = "Some entries could not be saved. Please check and try again.";
+      return;
+    }
+    showThankYou.value = true;
+  } finally {
+    submitting.value = false;
+  }
 }
 
 onMounted(refresh);
@@ -279,10 +288,9 @@ onMounted(refresh);
               :class="{ saved: totalSale.saved }"
               placeholder="0"
               v-model="totalSale.amount"
-              @blur="saveTotalSale"
+              @input="totalSale.touched = true"
               @keyup.enter="($event.target).blur()"
             />
-            <span v-if="totalSale.saving" class="save-status">Saving...</span>
           </div>
           <div v-else class="total-sale-input-row">
             <span class="total-sale-value">{{ peso(Number(totalSale.amount)) }}</span>
@@ -339,7 +347,7 @@ onMounted(refresh);
               :class="{ saved: rowFor(item.id).deliverySaved }"
               placeholder="0"
               v-model="rowFor(item.id).delivery"
-              @blur="saveDelivery(item.id)"
+              @input="rowFor(item.id).deliveryTouched = true"
               @keyup.enter="($event.target).blur()"
             />
           </div>
@@ -356,7 +364,7 @@ onMounted(refresh);
                 :class="{ saved: rowFor(item.id).closingSaved }"
                 placeholder="0"
                 v-model="rowFor(item.id).closing"
-                @blur="saveClosing(item.id)"
+                @input="rowFor(item.id).closingTouched = true"
                 @keyup.enter="($event.target).blur()"
               />
               <button
@@ -383,7 +391,11 @@ onMounted(refresh);
         </div>
 
         <label class="short-toggle">
-          <input type="checkbox" v-model="rowFor(item.id).isShort" @change="saveShortFlag(item.id)" />
+          <input
+            type="checkbox"
+            v-model="rowFor(item.id).isShort"
+            @change="rowFor(item.id).deliveryTouched = true"
+          />
           Need Deliver
         </label>
 
@@ -391,7 +403,22 @@ onMounted(refresh);
         <p v-if="rowFor(item.id).closingError" class="row-error">{{ rowFor(item.id).closingError }}</p>
       </div>
     </div>
+
+    <p v-if="submitError" class="error-message top-error">{{ submitError }}</p>
+
+    <div class="submit-bar">
+      <button type="button" class="submit-btn" :disabled="submitting" @click="submitAll">
+        {{ submitting ? "Submitting..." : "Submit" }}
+      </button>
+    </div>
   </template>
+
+  <Modal v-if="showThankYou" title="" @close="showThankYou = false">
+    <div class="thank-you">
+      <p class="thank-you-message">Thank you for your hardwork today! Rest well and God bless. 😊</p>
+      <button type="button" @click="showThankYou = false">Okay</button>
+    </div>
+  </Modal>
 </template>
 
 <style scoped>
@@ -678,6 +705,34 @@ onMounted(refresh);
   color: var(--color-danger);
   font-size: 0.8rem;
   margin: 0.4rem 0 0;
+}
+
+.submit-bar {
+  position: sticky;
+  bottom: 0;
+  padding: 1rem 0;
+  margin-top: 0.5rem;
+  background: var(--color-bg);
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 0.85rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.thank-you {
+  text-align: center;
+}
+
+.thank-you-message {
+  font-size: 1.05rem;
+  margin: 0.5rem 0 1.25rem;
+}
+
+.thank-you button {
+  min-width: 120px;
 }
 
 @media (max-width: 520px) {

@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted } from "vue";
 
 const props = defineProps({
   title: { type: String, default: "" },
+  wide: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["close"]);
@@ -18,7 +19,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeydown));
 <template>
   <Teleport to="body">
     <div class="modal-overlay" @click.self="emit('close')">
-      <div class="modal-panel" role="dialog" aria-modal="true">
+      <div class="modal-panel" :class="{ wide }" role="dialog" aria-modal="true">
         <div class="modal-header">
           <h2 class="modal-title">{{ title }}</h2>
           <button type="button" class="modal-close" aria-label="Close" @click="emit('close')">✕</button>
@@ -55,6 +56,10 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKeydown));
   border-top: 3px solid var(--color-primary);
   border-image: var(--gradient-primary) 1;
   box-shadow: var(--shadow-hover);
+}
+
+.modal-panel.wide {
+  max-width: 560px;
 }
 
 .modal-header {

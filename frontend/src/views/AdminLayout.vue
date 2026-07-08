@@ -91,37 +91,39 @@ function onLogout() {
         </div>
       </div>
 
-      <nav class="nav-group">
-        <button
-          v-for="link in navLinks"
-          :key="link.name"
-          type="button"
-          class="nav-link"
-          :class="{ 'nav-link-active': route.name === link.name }"
-          @click="goTo(link.name)"
-        >
-          <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" v-html="icons[link.icon]"></svg>
-          <span>{{ link.label }}</span>
-        </button>
-      </nav>
+      <div class="sidebar-scroll">
+        <nav class="nav-group">
+          <button
+            v-for="link in navLinks"
+            :key="link.name"
+            type="button"
+            class="nav-link"
+            :class="{ 'nav-link-active': route.name === link.name }"
+            @click="goTo(link.name)"
+          >
+            <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" v-html="icons[link.icon]"></svg>
+            <span>{{ link.label }}</span>
+          </button>
+        </nav>
 
-      <div class="nav-divider">
-        <span>More</span>
+        <div class="nav-divider">
+          <span>More</span>
+        </div>
+
+        <nav class="nav-group">
+          <button
+            v-for="link in moreLinks"
+            :key="link.name"
+            type="button"
+            class="nav-link"
+            :class="{ 'nav-link-active': route.name === link.name }"
+            @click="goTo(link.name)"
+          >
+            <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" v-html="icons[link.icon]"></svg>
+            <span>{{ link.label }}</span>
+          </button>
+        </nav>
       </div>
-
-      <nav class="nav-group">
-        <button
-          v-for="link in moreLinks"
-          :key="link.name"
-          type="button"
-          class="nav-link"
-          :class="{ 'nav-link-active': route.name === link.name }"
-          @click="goTo(link.name)"
-        >
-          <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" v-html="icons[link.icon]"></svg>
-          <span>{{ link.label }}</span>
-        </button>
-      </nav>
 
       <button class="logout-btn" @click="onLogout">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -159,7 +161,16 @@ function onLogout() {
   gap: 1.25rem;
   padding: 1.5rem 1.1rem;
   height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar-scroll {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
 .sidebar-header {

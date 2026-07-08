@@ -6,6 +6,7 @@ import {
   listStockItems,
   updateStockItem,
 } from "../api/stockItems";
+import { listBranches } from "../api/branches";
 import { ApiError } from "../api/client";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal.vue";
 import CustomSelect from "../components/CustomSelect.vue";
@@ -24,7 +25,8 @@ const categoryOptions = ref([
 ]);
 
 const items = ref([]);
-const form = ref({ name: "", unit: "", price: "", category: "" });
+const branches = ref([]);
+const form = ref({ name: "", unit: "", price: "", category: "", branchIds: [] });
 const error = ref("");
 const submitting = ref(false);
 const loading = ref(true);
@@ -34,6 +36,7 @@ const editingName = ref("");
 const editingUnit = ref("");
 const editingPrice = ref("");
 const editingCategory = ref("");
+const editingBranchIds = ref([]);
 const editError = ref("");
 const savingEdit = ref(false);
 const deletingId = ref(null);
@@ -66,6 +69,20 @@ function clearFilters() {
   search.value = "";
   unitFilter.value = "";
   categoryFilter.value = "";
+}
+
+function toggleBranch(branchIds, branchId) {
+  const idx = branchIds.indexOf(branchId);
+  if (idx === -1) branchIds.push(branchId);
+  else branchIds.splice(idx, 1);
+}
+
+function branchNames(item) {
+  if (!item.branch_ids || !item.branch_ids.length) return "All branches";
+  return item.branch_ids
+    .map((id) => branches.value.find((b) => b.id === id)?.name)
+    .filter(Boolean)
+    .join(", ");
 }
 
 function categoryRank(category) {
@@ -170,7 +187,7 @@ function confirmAddCategory(setCategory) {
 async function refresh() {
   loading.value = true;
   console.log("[stock-items] refresh: fetching items...");
-  items.value = await listStockItems();
+  [items.value, branches.value] = await Promise.all([listStockItems(), listBranches()]);
   console.log("[stock-items] refresh: fetched items:", JSON.parse(JSON.stringify(items.value)));
   items.value.forEach((i) => {
     if (i.unit && !unitOptions.value.some((u) => u.toLowerCase() === i.unit.toLowerCase())) {
@@ -185,7 +202,7 @@ async function refresh() {
 }
 
 function openAddModal() {
-  form.value = { name: "", unit: "", price: "", category: "" };
+  form.value = { name: "", unit: "", price: "", category: "", branchIds: [] };
   error.value = "";
   cancelAddUnit();
   cancelAddCategory();
@@ -209,7 +226,7 @@ async function onSubmit() {
       category: form.value.category || null,
     });
     console.log("[stock-items] createStockItem response:", created);
-    form.value = { name: "", unit: "", price: "", category: "" };
+    form.value = { name: "", unit: "", price: "", category: "", branchIds: [] };
     showAddModal.value = false;
     await refresh();
   } catch (e) {
@@ -227,6 +244,7 @@ function startEdit(item) {
   editingUnit.value = item.unit;
   editingPrice.value = item.price;
   editingCategory.value = item.category || "";
+  editingBranchIds.value = [...(item.branch_ids || [])];
   editError.value = "";
   cancelAddUnit();
   cancelAddCategory();
@@ -255,6 +273,7 @@ async function saveEdit() {
       unit: editingUnit.value,
       price: Number(editingPrice.value),
       category: editingCategory.value || null,
+      branchIds: editingBranchIds.value,
     });
     console.log("[stock-items] updateStockItem response:", updated);
     editingId.value = null;
@@ -452,6 +471,30 @@ onMounted(refresh);
           <label for="item-price">Price (₱)</label>
           <input id="item-price" v-model="form.price" type="number" min="0" step="any" required placeholder="e.g. 250" />
         </div>
+        <div class="field">
+          <label>Branches</label>
+          <div class="unit-picker">
+            <button
+              type="button"
+              class="unit-pill"
+              :class="{ active: !form.branchIds.length }"
+              @click="form.branchIds = []"
+            >
+              All branches
+            </button>
+            <button
+              v-for="b in branches"
+              :key="b.id"
+              type="button"
+              class="unit-pill"
+              :class="{ active: form.branchIds.includes(b.id) }"
+              @click="toggleBranch(form.branchIds, b.id)"
+            >
+              {{ b.name }}
+            </button>
+          </div>
+          <p class="unit-hint">Leave on "All branches" if every branch carries this item.</p>
+        </div>
         <p v-if="error" class="error-message">{{ error }}</p>
         <div class="modal-actions">
           <button type="button" class="secondary cancel" :disabled="submitting" @click="closeAddModal">Cancel</button>
@@ -555,6 +598,7 @@ onMounted(refresh);
             <span class="unit-chip">{{ i.unit }}</span>
           </div>
           <span v-if="i.category" class="category-chip">{{ i.category }}</span>
+          <span class="branch-chip" :class="{ scoped: i.branch_ids && i.branch_ids.length }">{{ branchNames(i) }}</span>
           <div class="item-card-price">₱{{ i.price.toFixed(2) }}</div>
           <div v-if="!selectionMode" class="item-card-actions">
             <button type="button" class="secondary edit btn-icon" @click="startEdit(i)"><Icon name="edit" :size="14" /> Edit</button>
@@ -649,6 +693,30 @@ onMounted(refresh);
         <div class="field">
           <label for="edit-item-price">Price (₱)</label>
           <input id="edit-item-price" v-model="editingPrice" type="number" min="0" step="any" required />
+        </div>
+        <div class="field">
+          <label>Branches</label>
+          <div class="unit-picker">
+            <button
+              type="button"
+              class="unit-pill"
+              :class="{ active: !editingBranchIds.length }"
+              @click="editingBranchIds = []"
+            >
+              All branches
+            </button>
+            <button
+              v-for="b in branches"
+              :key="b.id"
+              type="button"
+              class="unit-pill"
+              :class="{ active: editingBranchIds.includes(b.id) }"
+              @click="toggleBranch(editingBranchIds, b.id)"
+            >
+              {{ b.name }}
+            </button>
+          </div>
+          <p class="unit-hint">Leave on "All branches" if every branch carries this item.</p>
         </div>
         <p v-if="editError" class="error-message">{{ editError }}</p>
         <div class="modal-actions">
@@ -1048,6 +1116,23 @@ onMounted(refresh);
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
   border: 1px solid var(--color-border);
+}
+
+.branch-chip {
+  align-self: flex-start;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px dashed var(--color-border);
+}
+
+.branch-chip.scoped {
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary-soft);
 }
 
 .item-card-price {

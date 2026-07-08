@@ -8,6 +8,7 @@ class StockItemCreate(BaseModel):
     unit: str
     price: float
     category: str | None = None
+    branch_ids: list[str] = []
 
 
 class StockItemUpdate(BaseModel):
@@ -15,6 +16,7 @@ class StockItemUpdate(BaseModel):
     unit: str
     price: float
     category: str | None = None
+    branch_ids: list[str] = []
 
 
 class StockItemOut(BaseModel):
@@ -25,4 +27,5 @@ class StockItemOut(BaseModel):
     unit: str
     price: float
     category: str | None = None
+    branch_ids: list[str] = []
     created_at: datetime

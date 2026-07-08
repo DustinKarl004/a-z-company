@@ -70,14 +70,15 @@ function flashSaved(row) {
 async function saveBill(branchId) {
   const row = billRowFor(branchId);
   row.error = "";
-  if (row.amount === "" || Number.isNaN(Number(row.amount))) return;
+  if (Number.isNaN(Number(row.amount))) return;
+  const amount = row.amount === "" ? 0 : Number(row.amount);
   row.saving = true;
   try {
     const result = await createExpense({
       branchId,
       date: selectedDate.value,
       description: "Daily bills",
-      amount: Number(row.amount),
+      amount,
     });
     row.id = result.id;
     row.editing = false;
@@ -98,14 +99,15 @@ async function saveBill(branchId) {
 async function saveSales(branchId) {
   const row = salesRowFor(branchId);
   row.error = "";
-  if (row.amount === "" || Number.isNaN(Number(row.amount))) return;
+  if (Number.isNaN(Number(row.amount))) return;
+  const amount = row.amount === "" ? 0 : Number(row.amount);
   row.saving = true;
   try {
     let result;
     if (row.id) {
-      result = await updateTotalSale(row.id, Number(row.amount));
+      result = await updateTotalSale(row.id, amount);
     } else {
-      result = await createTotalSale({ branchId, date: selectedDate.value, amount: Number(row.amount) });
+      result = await createTotalSale({ branchId, date: selectedDate.value, amount });
     }
     row.id = result.id;
     row.editing = false;
@@ -233,6 +235,7 @@ async function refreshStockExpense() {
 
   for (const branch of relevantBranches) {
     for (const item of items) {
+      if (item.branch_ids && item.branch_ids.length && !item.branch_ids.includes(branch.id)) continue;
       const key = stockRowKey(branch.id, item.id);
       const row = stockRowFor(branch.id, item.id);
       row.itemName = item.name;
@@ -253,16 +256,17 @@ async function refreshStockExpense() {
 async function saveStockDelivery(branchId, itemId) {
   const row = stockRowFor(branchId, itemId);
   row.deliveryError = "";
-  if (row.delivery === "" || Number.isNaN(Number(row.delivery))) return;
+  if (Number.isNaN(Number(row.delivery))) return;
+  const quantity = row.delivery === "" ? 0 : Number(row.delivery);
   row.deliverySaving = true;
   try {
     if (row.deliveryId) {
-      await updateStockDelivery(row.deliveryId, { quantity_delivered: Number(row.delivery) });
+      await updateStockDelivery(row.deliveryId, { quantity_delivered: quantity });
     } else {
       const created = await createStockDelivery({
         branchId,
         itemId,
-        quantityDelivered: Number(row.delivery),
+        quantityDelivered: quantity,
         date: selectedDate.value,
       });
       row.deliveryId = created.id;
@@ -281,16 +285,17 @@ async function saveStockDelivery(branchId, itemId) {
 async function saveStockClosing(branchId, itemId) {
   const row = stockRowFor(branchId, itemId);
   row.closingError = "";
-  if (row.closing === "" || Number.isNaN(Number(row.closing))) return;
+  if (Number.isNaN(Number(row.closing))) return;
+  const quantity = row.closing === "" ? 0 : Number(row.closing);
   row.closingSaving = true;
   try {
     if (row.closingId) {
-      await updateStockCount(row.closingId, { quantity_remaining: Number(row.closing) });
+      await updateStockCount(row.closingId, { quantity_remaining: quantity });
     } else {
       const created = await createStockCount({
         branchId,
         itemId,
-        quantityRemaining: Number(row.closing),
+        quantityRemaining: quantity,
         date: selectedDate.value,
       });
       row.closingId = created.id;
@@ -340,6 +345,31 @@ const stockExpenseRows = computed(() =>
 const stockExpenseTotal = computed(() => stockExpenseRows.value.reduce((sum, r) => sum + (r.expense || 0), 0));
 const grandTotalExpense = computed(() => stockExpenseTotal.value + totalBills.value);
 const dailyProfit = computed(() => totalSales.value - grandTotalExpense.value);
+
+const COLLAPSED_BRANCHES_KEY = "za-admin-expenses-collapsed-branches";
+
+function loadCollapsedBranches() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(COLLAPSED_BRANCHES_KEY));
+    return new Set(Array.isArray(stored) ? stored : []);
+  } catch {
+    return new Set();
+  }
+}
+
+const collapsedBranches = ref(loadCollapsedBranches());
+
+function toggleBranchCollapse(branchId) {
+  const next = new Set(collapsedBranches.value);
+  if (next.has(branchId)) next.delete(branchId);
+  else next.add(branchId);
+  collapsedBranches.value = next;
+  localStorage.setItem(COLLAPSED_BRANCHES_KEY, JSON.stringify([...next]));
+}
+
+function isBranchCollapsed(branchId) {
+  return collapsedBranches.value.has(branchId);
+}
 
 const sortKey = ref("itemName");
 const sortDir = ref("asc");
@@ -622,6 +652,16 @@ watch([selectedDate, selectedBranchId], () => {
     <div v-else class="branch-groups">
       <div v-for="group in stockExpenseByBranch" :key="group.branchId" class="branch-group">
         <div class="branch-group-header">
+          <button
+            type="button"
+            class="branch-collapse-btn"
+            :class="{ collapsed: isBranchCollapsed(group.branchId) }"
+            :aria-expanded="!isBranchCollapsed(group.branchId)"
+            :aria-label="isBranchCollapsed(group.branchId) ? 'Expand branch' : 'Collapse branch'"
+            @click="toggleBranchCollapse(group.branchId)"
+          >
+            <Icon name="chevron-right" :size="16" />
+          </button>
           <h3 class="branch-group-name">{{ group.name }}</h3>
           <span class="branch-group-total">
             {{ peso(group.total + (Number(billRowFor(group.branchId).amount) || 0)) }}
@@ -693,7 +733,7 @@ watch([selectedDate, selectedBranchId], () => {
           </div>
         </div>
         <p v-if="billRowFor(group.branchId).error" class="row-error">{{ billRowFor(group.branchId).error }}</p>
-        <div class="table-scroll">
+        <div v-show="!isBranchCollapsed(group.branchId)" class="table-scroll">
           <table class="stock-expense-table">
             <thead>
               <tr>
@@ -939,6 +979,33 @@ watch([selectedDate, selectedBranchId], () => {
   gap: 1rem;
   flex-wrap: wrap;
   margin-bottom: 0.6rem;
+}
+
+.branch-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+}
+
+.branch-collapse-btn:hover {
+  border-color: var(--color-text-muted);
+}
+
+.branch-collapse-btn .icon {
+  transition: transform 0.15s ease;
+  transform: rotate(90deg);
+}
+
+.branch-collapse-btn.collapsed .icon {
+  transform: rotate(0deg);
 }
 
 .branch-group-name {
