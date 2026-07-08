@@ -7,6 +7,7 @@ import { createStockCount, listStockCounts, updateStockCount } from "../api/stoc
 import { createTotalSale, listSales, updateTotalSale } from "../api/sales";
 import { useAuthStore } from "../stores/auth";
 import Icon from "../components/Icon.vue";
+import LoadingState from "../components/LoadingState.vue";
 
 const auth = useAuthStore();
 
@@ -195,6 +196,28 @@ async function saveDelivery(itemId) {
   }
 }
 
+async function saveShortFlag(itemId) {
+  const r = rowFor(itemId);
+  r.deliveryError = "";
+  const quantity = r.delivery === "" || Number.isNaN(Number(r.delivery)) ? 0 : Number(r.delivery);
+  r.deliverySaving = true;
+  try {
+    if (r.deliveryId) {
+      await updateStockDelivery(r.deliveryId, { quantity_delivered: quantity, is_short: r.isShort });
+    } else {
+      const created = await createStockDelivery({ itemId, quantityDelivered: quantity, isShort: r.isShort });
+      r.deliveryId = created.id;
+      r.delivery = String(quantity);
+    }
+    flashSaved(r, "delivery");
+  } catch (e) {
+    r.isShort = !r.isShort;
+    r.deliveryError = e instanceof ApiError ? e.detail || "Could not save" : "Could not save";
+  } finally {
+    r.deliverySaving = false;
+  }
+}
+
 async function saveClosing(itemId) {
   const r = rowFor(itemId);
   r.closingError = "";
@@ -237,7 +260,7 @@ onMounted(refresh);
   </div>
 
   <p v-if="error" class="error-message top-error">{{ error }}</p>
-  <p v-if="loading" class="state-message">Loading...</p>
+  <LoadingState v-if="loading" label="Loading today's stock..." />
 
   <template v-else>
     <div class="card total-sale-card">
@@ -360,7 +383,7 @@ onMounted(refresh);
         </div>
 
         <label class="short-toggle">
-          <input type="checkbox" v-model="rowFor(item.id).isShort" @change="saveDelivery(item.id)" />
+          <input type="checkbox" v-model="rowFor(item.id).isShort" @change="saveShortFlag(item.id)" />
           Need Deliver
         </label>
 
@@ -402,11 +425,6 @@ onMounted(refresh);
 .page-subtitle {
   color: var(--color-text-muted);
   margin: 0;
-}
-
-.state-message {
-  text-align: center;
-  color: var(--color-text-muted);
 }
 
 .top-error {

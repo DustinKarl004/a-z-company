@@ -2,6 +2,7 @@ from datetime import date
 
 from fastapi import HTTPException, status
 
+from app.core.clock import local_today
 from app.models.user import User
 
 
@@ -19,7 +20,7 @@ def resolve_branch_id(user: User, requested_branch_id: str | None) -> str:
 
 def ensure_editable(user: User, record_date: date) -> None:
     """Staff can only edit today's entries; admin can edit any date."""
-    if user.role == "staff" and record_date != date.today():
+    if user.role == "staff" and record_date != local_today():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This entry can no longer be edited",
@@ -28,7 +29,7 @@ def ensure_editable(user: User, record_date: date) -> None:
 
 def ensure_creatable_date(user: User, record_date: date) -> None:
     """Staff can only log entries for today; admin can back/forward-date."""
-    if user.role == "staff" and record_date != date.today():
+    if user.role == "staff" and record_date != local_today():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Staff can only log entries for today",

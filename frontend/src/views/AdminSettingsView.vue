@@ -5,6 +5,7 @@ import { disableTotp, enableTotp, getTotpStatus, setupTotp } from "../api/settin
 import { ApiError } from "../api/client";
 import Modal from "../components/Modal.vue";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal.vue";
+import LoadingState from "../components/LoadingState.vue";
 
 const loading = ref(true);
 const enabled = ref(false);
@@ -121,7 +122,7 @@ onMounted(refresh);
     </div>
 
     <div v-if="loading" class="card state-card">
-      <p class="state-message">Loading settings...</p>
+      <LoadingState label="Loading settings..." />
     </div>
 
     <div v-else class="card totp-card">
@@ -146,7 +147,7 @@ onMounted(refresh);
       :title="backupCodes.length ? 'Save your backup codes' : 'Set up two-factor authentication'"
       @close="closeSetupModal"
     >
-      <div v-if="settingUp" class="state-message">Preparing setup...</div>
+      <LoadingState v-if="settingUp" label="Preparing setup..." />
 
       <div v-else-if="backupCodes.length">
         <p class="modal-step">
@@ -231,13 +232,6 @@ onMounted(refresh);
 
 .state-card {
   padding: 0;
-}
-
-.state-message {
-  padding: 2rem 1.5rem;
-  text-align: center;
-  color: var(--color-text-muted);
-  margin: 0;
 }
 
 .totp-card {

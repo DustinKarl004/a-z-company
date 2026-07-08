@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { getMonthly, getOverview } from "../api/dashboard";
 import MonthYearPicker from "../components/MonthYearPicker.vue";
+import LoadingState from "../components/LoadingState.vue";
 
 const SERIES_COLORS = ["#ff2d4d", "#ff8a3d", "#ffe14d", "#4dd6ff", "#8a6bff", "#4dffb0", "#ff4dd2", "#c8c8c8"];
 const BAR_COLOR = "#ff2d4d";
@@ -163,7 +164,7 @@ const hoverTooltip = computed(() => {
       </div>
     </div>
 
-    <p v-if="loading" class="state-message">Loading dashboard...</p>
+    <LoadingState v-if="loading" label="Loading dashboard..." />
 
     <template v-else-if="overview">
       <div class="stat-row">
@@ -242,7 +243,7 @@ const hoverTooltip = computed(() => {
           <MonthYearPicker v-model:year="selectedYear" v-model:month="selectedMonth" />
         </div>
 
-        <p v-if="monthlyLoading" class="state-message">Loading...</p>
+        <LoadingState v-if="monthlyLoading" label="Loading monthly trend..." />
         <template v-else-if="monthly">
           <div v-if="monthly.daily?.length" class="monthly-body">
             <div class="line-chart-scroll">
@@ -376,11 +377,6 @@ const hoverTooltip = computed(() => {
   letter-spacing: 0.08em;
 }
 
-.state-message {
-  padding: 2rem 1.5rem;
-  text-align: center;
-  color: var(--color-text-muted);
-}
 
 .stat-row {
   display: grid;

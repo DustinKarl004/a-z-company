@@ -1,8 +1,7 @@
-import { apiFetch } from "./client";
+import { apiFetch, buildQuery } from "./client";
 
 export function listSales(params = {}) {
-  const query = new URLSearchParams(params).toString();
-  return apiFetch(`/sales${query ? `?${query}` : ""}`);
+  return apiFetch(`/sales${buildQuery(params)}`);
 }
 
 export function createSale({ itemId, quantitySold }) {
@@ -16,10 +15,10 @@ export function updateSale(id, quantitySold) {
   return apiFetch(`/sales/${id}`, { method: "PATCH", body: { quantity_sold: quantitySold } });
 }
 
-export function createTotalSale({ date, amount }) {
+export function createTotalSale({ branchId, date, amount }) {
   return apiFetch("/sales", {
     method: "POST",
-    body: { date, amount },
+    body: { branch_id: branchId, date, amount },
   });
 }
 

@@ -1,9 +1,24 @@
-from datetime import date
+from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.core.clock import local_today
 from app.models.stock_delivery import StockDelivery
+
+NEEDS_RETENTION_DAYS = 3
+
+
+def clear_stale_short_flags(db: Session) -> None:
+    """Needs older than NEEDS_RETENTION_DAYS no longer need action; drop the flag."""
+    cutoff = local_today() - timedelta(days=NEEDS_RETENTION_DAYS)
+    db.execute(
+        update(StockDelivery)
+        .where(StockDelivery.is_short.is_(True))
+        .where(StockDelivery.date < cutoff)
+        .values(is_short=False)
+    )
+    db.commit()
 
 
 def create_delivery(
@@ -28,6 +43,18 @@ def create_delivery(
     db.commit()
     db.refresh(delivery)
     return delivery
+
+
+def get_delivery_for_day(
+    db: Session, *, branch_id: str, item_id: str, date_: date
+) -> StockDelivery | None:
+    return db.scalar(
+        select(StockDelivery).where(
+            StockDelivery.branch_id == branch_id,
+            StockDelivery.item_id == item_id,
+            StockDelivery.date == date_,
+        )
+    )
 
 
 def list_deliveries(

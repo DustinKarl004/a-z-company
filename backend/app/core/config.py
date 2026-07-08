@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-to-a-long-random-string"
     jwt_expire_minutes: int = 480
 
+    # The business operates in this timezone; staff edit/creation cutoffs ("today")
+    # are computed against it, not the server host's (often UTC) system clock.
+    app_timezone: str = "Asia/Manila"
+
     admin_email: str = "admin@za-company.com"
     admin_password: str = "change-me"
 

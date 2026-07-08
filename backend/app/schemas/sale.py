@@ -2,11 +2,13 @@ from datetime import date as date_type, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.clock import local_today
+
 
 class SaleCreate(BaseModel):
     branch_id: str | None = None
     item_id: str | None = None
-    date: date_type = Field(default_factory=date_type.today)
+    date: date_type = Field(default_factory=local_today)
     quantity_sold: float | None = None
     amount: float | None = None
 

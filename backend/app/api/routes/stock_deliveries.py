@@ -8,8 +8,10 @@ from app.core.deps import require_staff_or_admin
 from app.core.scoping import ensure_creatable_date, ensure_editable, resolve_branch_id
 from app.crud.branches import get_branch
 from app.crud.stock_deliveries import (
+    clear_stale_short_flags,
     create_delivery,
     get_delivery,
+    get_delivery_for_day,
     list_deliveries,
     update_delivery,
 )
@@ -37,6 +39,13 @@ def create_delivery_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid item_id")
     ensure_creatable_date(user, payload.date)
 
+    existing = get_delivery_for_day(db, branch_id=branch_id, item_id=payload.item_id, date_=payload.date)
+    if existing is not None:
+        updated = update_delivery(
+            db, existing, quantity_delivered=payload.quantity_delivered, is_short=payload.is_short
+        )
+        return StockDeliveryOut.model_validate(updated)
+
     delivery = create_delivery(
         db,
         branch_id=branch_id,
@@ -57,6 +66,8 @@ def list_deliveries_endpoint(
     db: Session = Depends(get_db),
     user: User = Depends(require_staff_or_admin),
 ) -> list[StockDeliveryOut]:
+    if is_short:
+        clear_stale_short_flags(db)
     effective_branch_id = branch_id if user.role == "admin" else user.branch_id
     return [
         StockDeliveryOut.model_validate(d)

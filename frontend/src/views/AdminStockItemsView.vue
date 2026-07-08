@@ -11,6 +11,7 @@ import ConfirmDeleteModal from "../components/ConfirmDeleteModal.vue";
 import CustomSelect from "../components/CustomSelect.vue";
 import Modal from "../components/Modal.vue";
 import Icon from "../components/Icon.vue";
+import LoadingState from "../components/LoadingState.vue";
 
 const unitOptions = ref(["kg", "g", "L", "mL", "pcs", "servings", "pack", "box", "sack", "bottle"]);
 const categoryOptions = ref([
@@ -523,7 +524,7 @@ onMounted(refresh);
 
     <p v-if="deleteError" class="error-message top-error">{{ deleteError }}</p>
 
-    <p v-if="loading" class="state-message">Loading items...</p>
+    <LoadingState v-if="loading" label="Loading items..." />
     <div v-else-if="!filteredItems.length" class="card state-card">
       <div class="empty-state">
         <template v-if="items.length">
@@ -851,12 +852,6 @@ onMounted(refresh);
   padding: 0;
 }
 
-.state-message {
-  padding: 2rem 1.5rem;
-  text-align: center;
-  color: var(--color-text-muted);
-  margin: 0;
-}
 
 .empty-state {
   padding: 2.5rem 1.5rem;

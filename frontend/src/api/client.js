@@ -2,6 +2,17 @@ import { useAuthStore } from "../stores/auth";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
+export function buildQuery(params = {}) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== null && value !== undefined && value !== "") {
+      query.append(key, value);
+    }
+  }
+  const str = query.toString();
+  return str ? `?${str}` : "";
+}
+
 export class ApiError extends Error {
   constructor(status, detail) {
     super(typeof detail === "string" ? detail : "Request failed");

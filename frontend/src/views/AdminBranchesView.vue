@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import Modal from "../components/Modal.vue";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal.vue";
 import Icon from "../components/Icon.vue";
+import LoadingState from "../components/LoadingState.vue";
 
 const branches = ref([]);
 const name = ref("");
@@ -161,7 +162,7 @@ onMounted(refresh);
     <p v-if="deleteError" class="error-message top-error">{{ deleteError }}</p>
 
     <div v-if="loading" class="card state-card">
-      <p class="state-message">Loading branches...</p>
+      <LoadingState label="Loading branches..." />
     </div>
 
     <div v-else-if="!branches.length" class="card state-card">
@@ -262,13 +263,6 @@ onMounted(refresh);
 
 .state-card {
   padding: 0;
-}
-
-.state-message {
-  padding: 2rem 1.5rem;
-  text-align: center;
-  color: var(--color-text-muted);
-  margin: 0;
 }
 
 .empty-state {

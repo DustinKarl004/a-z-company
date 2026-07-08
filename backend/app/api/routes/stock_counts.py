@@ -7,7 +7,13 @@ from app.core.database import get_db
 from app.core.deps import require_staff_or_admin
 from app.core.scoping import ensure_creatable_date, ensure_editable, resolve_branch_id
 from app.crud.branches import get_branch
-from app.crud.stock_counts import create_count, get_count, list_counts, update_count
+from app.crud.stock_counts import (
+    create_count,
+    get_count,
+    get_count_for_day,
+    list_counts,
+    update_count,
+)
 from app.crud.stock_items import get_stock_item
 from app.models.user import User
 from app.schemas.stock_count import StockCountCreate, StockCountOut, StockCountUpdate
@@ -27,6 +33,11 @@ def create_count_endpoint(
     if get_stock_item(db, payload.item_id) is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid item_id")
     ensure_creatable_date(user, payload.date)
+
+    existing = get_count_for_day(db, branch_id=branch_id, item_id=payload.item_id, date_=payload.date)
+    if existing is not None:
+        updated = update_count(db, existing, quantity_remaining=payload.quantity_remaining)
+        return StockCountOut.model_validate(updated)
 
     count = create_count(
         db,

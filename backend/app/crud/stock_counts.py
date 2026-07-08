@@ -28,6 +28,18 @@ def create_count(
     return count
 
 
+def get_count_for_day(
+    db: Session, *, branch_id: str, item_id: str, date_: date
+) -> StockCount | None:
+    return db.scalar(
+        select(StockCount).where(
+            StockCount.branch_id == branch_id,
+            StockCount.item_id == item_id,
+            StockCount.date == date_,
+        )
+    )
+
+
 def list_counts(
     db: Session, *, branch_id: str | None = None, date_: date | None = None
 ) -> list[StockCount]:

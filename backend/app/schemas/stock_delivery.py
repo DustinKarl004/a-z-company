@@ -2,11 +2,13 @@ from datetime import date as date_type, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.clock import local_today
+
 
 class StockDeliveryCreate(BaseModel):
     branch_id: str | None = None
     item_id: str
-    date: date_type = Field(default_factory=date_type.today)
+    date: date_type = Field(default_factory=local_today)
     quantity_delivered: float
     is_short: bool = False
 

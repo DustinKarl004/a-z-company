@@ -1,8 +1,7 @@
-import { apiFetch } from "./client";
+import { apiFetch, buildQuery } from "./client";
 
 export function listExpenses(params = {}) {
-  const query = new URLSearchParams(params).toString();
-  return apiFetch(`/expenses${query ? `?${query}` : ""}`);
+  return apiFetch(`/expenses${buildQuery(params)}`);
 }
 
 export function createExpense({ branchId, date, description, amount }) {

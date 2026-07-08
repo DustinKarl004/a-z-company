@@ -8,6 +8,7 @@ import ConfirmDeleteModal from "../components/ConfirmDeleteModal.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import Modal from "../components/Modal.vue";
 import Icon from "../components/Icon.vue";
+import LoadingState from "../components/LoadingState.vue";
 
 
 const staff = ref([]);
@@ -306,7 +307,7 @@ onMounted(refresh);
 
     <p v-if="rowError" class="error-message top-error">{{ rowError }}</p>
 
-    <p v-if="loading" class="state-message">Loading staff...</p>
+    <LoadingState v-if="loading" label="Loading staff..." />
     <div v-else-if="!filteredStaff.length" class="card state-card">
       <div class="empty-state">
         <template v-if="staff.length">
@@ -577,13 +578,6 @@ onMounted(refresh);
 
 .state-card {
   padding: 0;
-}
-
-.state-message {
-  padding: 2rem 1.5rem;
-  text-align: center;
-  color: var(--color-text-muted);
-  margin: 0;
 }
 
 .empty-state {

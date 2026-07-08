@@ -1,14 +1,13 @@
-import { apiFetch } from "./client";
+import { apiFetch, buildQuery } from "./client";
 
 export function listStockCounts(params = {}) {
-  const query = new URLSearchParams(params).toString();
-  return apiFetch(`/stock-counts${query ? `?${query}` : ""}`);
+  return apiFetch(`/stock-counts${buildQuery(params)}`);
 }
 
-export function createStockCount({ itemId, quantityRemaining }) {
+export function createStockCount({ branchId, itemId, quantityRemaining, date }) {
   return apiFetch("/stock-counts", {
     method: "POST",
-    body: { item_id: itemId, quantity_remaining: quantityRemaining },
+    body: { branch_id: branchId, item_id: itemId, quantity_remaining: quantityRemaining, date },
   });
 }
 
