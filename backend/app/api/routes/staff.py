@@ -19,8 +19,13 @@ def _get_staff_or_404(db: Session, staff_id: str):
 
 @router.post("", response_model=StaffOut, status_code=201)
 def create_staff_endpoint(payload: StaffCreate, db: Session = Depends(get_db)) -> StaffOut:
-    if get_branch(db, payload.branch_id) is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid branch_id")
+    is_all_branch_delivery = payload.roles == ["delivery"]
+    branch_id = None if is_all_branch_delivery else payload.branch_id
+    if not is_all_branch_delivery:
+        if not branch_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="branch_id is required")
+        if get_branch(db, branch_id) is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid branch_id")
     if get_user_by_email(db, payload.email) is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use")
 
@@ -30,7 +35,8 @@ def create_staff_endpoint(payload: StaffCreate, db: Session = Depends(get_db)) -
         email=payload.email,
         password=payload.password,
         role="staff",
-        branch_id=payload.branch_id,
+        branch_id=branch_id,
+        roles=payload.roles,
     )
     return StaffOut.model_validate(staff)
 
@@ -50,16 +56,28 @@ def update_staff_endpoint(
     staff_id: str, payload: StaffUpdate, db: Session = Depends(get_db)
 ) -> StaffOut:
     staff = _get_staff_or_404(db, staff_id)
-    if payload.branch_id is not None and get_branch(db, payload.branch_id) is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid branch_id")
+    target_roles = payload.roles if payload.roles is not None else staff.roles
+    is_all_branch_delivery = target_roles == ["delivery"]
+
+    clear_branch = False
+    if is_all_branch_delivery:
+        clear_branch = True
+    else:
+        effective_branch_id = payload.branch_id if payload.branch_id is not None else staff.branch_id
+        if not effective_branch_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="branch_id is required")
+        if payload.branch_id is not None and get_branch(db, payload.branch_id) is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid branch_id")
 
     updated = update_user(
         db,
         staff,
         name=payload.name,
         branch_id=payload.branch_id,
+        clear_branch=clear_branch,
         is_active=payload.is_active,
         password=payload.password,
+        roles=payload.roles,
     )
     return StaffOut.model_validate(updated)
 

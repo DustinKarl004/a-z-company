@@ -14,4 +14,5 @@ class StockDelivery(Base, IdMixin):
     date: Mapped[date_type] = mapped_column(Date, nullable=False)
     quantity_delivered: Mapped[float] = mapped_column(Float, nullable=False)
     is_short: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_delivered: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_by_id: Mapped[str] = mapped_column(String(12), ForeignKey("users.id"), nullable=False)

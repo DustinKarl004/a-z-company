@@ -30,6 +30,7 @@ def create_user(
     password: str,
     role: str,
     branch_id: str | None,
+    roles: list[str] | None = None,
 ) -> User:
     user = User(
         name=name,
@@ -38,6 +39,7 @@ def create_user(
         role=role,
         branch_id=branch_id,
     )
+    user.roles = roles or ["staff"]
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -99,17 +101,23 @@ def update_user(
     *,
     name: str | None = None,
     branch_id: str | None = None,
+    clear_branch: bool = False,
     is_active: bool | None = None,
     password: str | None = None,
+    roles: list[str] | None = None,
 ) -> User:
     if name is not None:
         user.name = name
-    if branch_id is not None:
+    if clear_branch:
+        user.branch_id = None
+    elif branch_id is not None:
         user.branch_id = branch_id
     if is_active is not None:
         user.is_active = is_active
     if password is not None:
         user.password_hash = hash_password(password)
+    if roles is not None:
+        user.roles = roles
     db.commit()
     db.refresh(user)
     return user

@@ -1,9 +1,12 @@
 <script setup>
+import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 
 const auth = useAuthStore();
 const router = useRouter();
+
+const showTabs = computed(() => auth.staffRoles.length > 1);
 
 function onLogout() {
   auth.logout();
@@ -31,6 +34,25 @@ function onLogout() {
         Log out
       </button>
     </header>
+
+    <nav v-if="showTabs" class="staff-tabs">
+      <router-link
+        v-if="auth.staffRoles.includes('staff')"
+        :to="{ name: 'staff-deliveries' }"
+        class="staff-tab"
+        active-class="active"
+      >
+        Daily Stock
+      </router-link>
+      <router-link
+        v-if="auth.staffRoles.includes('delivery')"
+        :to="{ name: 'staff-delivery-log' }"
+        class="staff-tab"
+        active-class="active"
+      >
+        Delivery
+      </router-link>
+    </nav>
 
     <main class="staff-content">
       <router-view />
@@ -110,6 +132,31 @@ function onLogout() {
 .logout-btn:hover {
   background: var(--color-danger);
   border-color: var(--color-danger);
+}
+
+.staff-tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem 0;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.staff-tab {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.staff-tab.active {
+  color: #fff;
+  background: var(--gradient-primary);
+  border-color: transparent;
 }
 
 .staff-content {

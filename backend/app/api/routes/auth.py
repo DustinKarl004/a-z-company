@@ -34,6 +34,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
     token = create_access_token(
         user_id=user.id,
         role=user.role,
+        roles=user.roles,
         branch_id=user.branch_id,
         branch_name=branch.name if branch else None,
     )

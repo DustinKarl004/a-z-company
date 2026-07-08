@@ -7,8 +7,8 @@ from app.models.user import User
 
 
 def resolve_branch_id(user: User, requested_branch_id: str | None) -> str:
-    """Staff are always scoped to their own branch; admin must specify one."""
-    if user.role == "staff":
+    """Staff scoped to a branch always use it; admins and all-branch (delivery) staff must specify one."""
+    if user.role == "staff" and user.branch_id:
         return user.branch_id
 
     if not requested_branch_id:

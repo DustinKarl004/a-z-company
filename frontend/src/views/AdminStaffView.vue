@@ -29,8 +29,54 @@ const toggleTarget = ref(null);
 const toggleModalError = ref("");
 const toggling = ref(false);
 
-const form = ref({ name: "", email: "", password: "", branchId: "" });
+const form = ref({ name: "", email: "", password: "", branchId: "", role: "staff" });
 const showPassword = ref(false);
+
+const roleOptions = [
+  { value: "staff", label: "Staff", hint: "Daily stock, closing counts, and sales" },
+  { value: "delivery", label: "Delivery", hint: "Logs incoming stock deliveries" },
+];
+
+const rolesTarget = ref(null);
+const roleDraft = ref("staff");
+const branchDraft = ref("");
+const rolesModalError = ref("");
+const savingRoles = ref(false);
+
+function roleLabel(value) {
+  return roleOptions.find((r) => r.value === value)?.label || value;
+}
+
+function openRolesModal(member) {
+  rolesModalError.value = "";
+  roleDraft.value = member.roles?.[0] || "staff";
+  branchDraft.value = member.branch_id || "";
+  rolesTarget.value = member;
+}
+
+function cancelRolesModal() {
+  rolesTarget.value = null;
+}
+
+async function saveRoles() {
+  rolesModalError.value = "";
+  if (roleDraft.value === "staff" && !branchDraft.value) {
+    rolesModalError.value = "Select a branch for the Staff role.";
+    return;
+  }
+  savingRoles.value = true;
+  try {
+    const payload = { roles: [roleDraft.value] };
+    if (roleDraft.value === "staff") payload.branch_id = branchDraft.value;
+    await updateStaff(rolesTarget.value.id, payload);
+    rolesTarget.value = null;
+    await refresh();
+  } catch (e) {
+    rolesModalError.value = e instanceof ApiError ? e.detail || "Could not update roles" : "Could not update roles";
+  } finally {
+    savingRoles.value = false;
+  }
+}
 
 const search = ref("");
 const branchFilter = ref("");
@@ -90,6 +136,7 @@ const branchOptions = computed(() => branches.value.map((b) => ({ label: b.name,
 const branchFilterOptions = computed(() => [{ label: "All branches", value: "" }, ...branchOptions.value]);
 
 function branchName(id) {
+  if (!id) return "All branches";
   return branches.value.find((b) => b.id === id)?.name || "—";
 }
 
@@ -109,7 +156,7 @@ async function refresh() {
 }
 
 function openAddModal() {
-  form.value = { name: "", email: "", password: "", branchId: "" };
+  form.value = { name: "", email: "", password: "", branchId: "", role: "staff" };
   error.value = "";
   showAddModal.value = true;
 }
@@ -120,10 +167,14 @@ function closeAddModal() {
 
 async function onSubmit() {
   error.value = "";
+  if (form.value.role === "staff" && !form.value.branchId) {
+    error.value = "Select a branch for the Staff role.";
+    return;
+  }
   submitting.value = true;
   try {
-    await createStaff(form.value);
-    form.value = { name: "", email: "", password: "", branchId: "" };
+    await createStaff({ ...form.value, roles: [form.value.role] });
+    form.value = { name: "", email: "", password: "", branchId: "", role: "staff" };
     showAddModal.value = false;
     await refresh();
   } catch (e) {
@@ -261,10 +312,23 @@ onMounted(refresh);
               </button>
             </div>
           </div>
-          <div class="field">
+          <div v-if="form.role === 'staff'" class="field">
             <label for="staff-branch">Branch</label>
             <CustomSelect id="staff-branch" v-model="form.branchId" :options="branchOptions" placeholder="Select a branch" />
           </div>
+        </div>
+        <div class="field roles-field">
+          <label>Role</label>
+          <div class="role-checkboxes">
+            <label v-for="opt in roleOptions" :key="opt.value" class="role-checkbox">
+              <input type="radio" name="staff-role" :value="opt.value" v-model="form.role" />
+              <span class="role-checkbox-text">
+                <span class="role-checkbox-label">{{ opt.label }}</span>
+                <span class="role-checkbox-hint">{{ opt.hint }}</span>
+              </span>
+            </label>
+          </div>
+          <p v-if="form.role === 'delivery'" class="roles-note">Delivery staff can log deliveries for any branch — no branch is assigned.</p>
         </div>
         <p v-if="error" class="error-message">{{ error }}</p>
         <div class="modal-actions">
@@ -302,6 +366,28 @@ onMounted(refresh);
         </div>
       </div>
     </div>
+
+    <Modal v-if="rolesTarget" :title="`Edit roles for &quot;${rolesTarget.name}&quot;`" @close="cancelRolesModal">
+      <div class="role-checkboxes">
+        <label v-for="opt in roleOptions" :key="opt.value" class="role-checkbox">
+          <input type="radio" name="edit-staff-role" :value="opt.value" v-model="roleDraft" />
+          <span class="role-checkbox-text">
+            <span class="role-checkbox-label">{{ opt.label }}</span>
+            <span class="role-checkbox-hint">{{ opt.hint }}</span>
+          </span>
+        </label>
+      </div>
+      <div v-if="roleDraft === 'staff'" class="field roles-branch-field">
+        <label for="roles-branch">Branch</label>
+        <CustomSelect id="roles-branch" v-model="branchDraft" :options="branchOptions" placeholder="Select a branch" />
+      </div>
+      <p v-else class="roles-note">Delivery staff can log deliveries for any branch — no branch is assigned.</p>
+      <p v-if="rolesModalError" class="error-message">{{ rolesModalError }}</p>
+      <div class="modal-actions">
+        <button type="button" class="secondary cancel" :disabled="savingRoles" @click="cancelRolesModal">Cancel</button>
+        <button type="button" :disabled="savingRoles" @click="saveRoles">{{ savingRoles ? "Saving..." : "Save roles" }}</button>
+      </div>
+    </Modal>
 
     <ConfirmDeleteModal
       :open="!!deleteTarget"
@@ -361,6 +447,12 @@ onMounted(refresh);
             <div class="staff-card-branch">
               <span class="branch-dot"></span>
               {{ branchName(s.branch_id) }}
+            </div>
+            <div class="staff-card-roles">
+              <span v-for="r in s.roles" :key="r" class="role-chip">{{ roleLabel(r) }}</span>
+              <button type="button" class="edit-roles-btn" aria-label="Edit role" @click="openRolesModal(s)">
+                <Icon name="edit" :size="12" /> Edit role
+              </button>
             </div>
           </div>
           <div class="staff-card-actions">
@@ -546,6 +638,97 @@ onMounted(refresh);
   justify-content: flex-end;
   gap: 0.6rem;
   margin-top: 0.25rem;
+}
+
+.roles-field {
+  margin-bottom: 1rem;
+}
+
+.role-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.role-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.role-checkbox input {
+  margin-top: 0.2rem;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.role-checkbox-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.roles-branch-field {
+  margin-top: 0.75rem;
+}
+
+.roles-note {
+  margin-top: 0.75rem;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.role-checkbox-label {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.role-checkbox-hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.staff-card-roles {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.role-chip {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+}
+
+.edit-roles-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  margin-left: auto;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px solid #fff;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.edit-roles-btn:hover {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .filters-card {

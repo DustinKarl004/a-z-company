@@ -25,6 +25,10 @@ export const useAuthStore = defineStore("auth", {
     branchName() {
       return this.user?.branch_name || null;
     },
+    staffRoles() {
+      const roles = this.user?.roles;
+      return Array.isArray(roles) && roles.length ? roles : ["staff"];
+    },
   },
 
   actions: {

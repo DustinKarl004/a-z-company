@@ -84,11 +84,14 @@ def update_delivery(
     *,
     quantity_delivered: float | None,
     is_short: bool | None,
+    is_delivered: bool | None = None,
 ) -> StockDelivery:
     if quantity_delivered is not None:
         delivery.quantity_delivered = quantity_delivered
     if is_short is not None:
         delivery.is_short = is_short
+    if is_delivered is not None:
+        delivery.is_delivered = is_delivered
     db.commit()
     db.refresh(delivery)
     return delivery

@@ -98,3 +98,19 @@ def staff_token(client, db_session, branch):
 @pytest.fixture()
 def staff_token2(client, db_session, branch2):
     return _staff_token(client, db_session, branch2, "staff2@example.com")
+
+
+@pytest.fixture()
+def delivery_token(client, db_session):
+    create_user(
+        db_session,
+        name="Delivery",
+        email="delivery@example.com",
+        password="staffpass123",
+        role="staff",
+        branch_id=None,
+        roles=["delivery"],
+    )
+    resp = client.post("/auth/login", json={"email": "delivery@example.com", "password": "staffpass123"})
+    assert resp.status_code == 200
+    return resp.json()["access_token"]

@@ -4,10 +4,10 @@ export function listStaff() {
   return apiFetch("/staff");
 }
 
-export function createStaff({ name, email, password, branchId }) {
+export function createStaff({ name, email, password, branchId, roles }) {
   return apiFetch("/staff", {
     method: "POST",
-    body: { name, email, password, branch_id: branchId },
+    body: { name, email, password, branch_id: branchId, roles },
   });
 }
 

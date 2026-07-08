@@ -16,6 +16,7 @@ class StockDeliveryCreate(BaseModel):
 class StockDeliveryUpdate(BaseModel):
     quantity_delivered: float | None = None
     is_short: bool | None = None
+    is_delivered: bool | None = None
 
 
 class StockDeliveryOut(BaseModel):
@@ -27,5 +28,6 @@ class StockDeliveryOut(BaseModel):
     date: date_type
     quantity_delivered: float
     is_short: bool
+    is_delivered: bool
     created_by_id: str
     created_at: datetime

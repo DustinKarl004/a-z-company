@@ -19,12 +19,18 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 def create_access_token(
-    *, user_id: str, role: str, branch_id: str | None, branch_name: str | None = None
+    *,
+    user_id: str,
+    role: str,
+    branch_id: str | None,
+    branch_name: str | None = None,
+    roles: list[str] | None = None,
 ) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": user_id,
         "role": role,
+        "roles": roles or [],
         "branch_id": branch_id,
         "branch_name": branch_name,
         "iat": now,

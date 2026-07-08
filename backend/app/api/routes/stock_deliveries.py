@@ -68,7 +68,7 @@ def list_deliveries_endpoint(
 ) -> list[StockDeliveryOut]:
     if is_short:
         clear_stale_short_flags(db)
-    effective_branch_id = branch_id if user.role == "admin" else user.branch_id
+    effective_branch_id = branch_id if (user.role == "admin" or not user.branch_id) else user.branch_id
     return [
         StockDeliveryOut.model_validate(d)
         for d in list_deliveries(db, branch_id=effective_branch_id, date_=date, is_short=is_short)
@@ -85,11 +85,16 @@ def update_delivery_endpoint(
     delivery = get_delivery(db, delivery_id)
     if delivery is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delivery not found")
-    if user.role == "staff" and delivery.branch_id != user.branch_id:
+    if user.role == "staff" and user.branch_id and delivery.branch_id != user.branch_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your branch")
-    ensure_editable(user, delivery.date)
+    if payload.quantity_delivered is not None or payload.is_short is not None:
+        ensure_editable(user, delivery.date)
 
     updated = update_delivery(
-        db, delivery, quantity_delivered=payload.quantity_delivered, is_short=payload.is_short
+        db,
+        delivery,
+        quantity_delivered=payload.quantity_delivered,
+        is_short=payload.is_short,
+        is_delivered=payload.is_delivered,
     )
     return StockDeliveryOut.model_validate(updated)
