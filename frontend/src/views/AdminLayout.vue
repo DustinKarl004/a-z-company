@@ -2,6 +2,7 @@
 import { ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import ConfirmModal from "../components/ConfirmModal.vue";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -36,6 +37,7 @@ const icons = {
 };
 
 const menuOpen = ref(false);
+const showLogoutConfirm = ref(false);
 
 watch(() => route.name, () => {
   menuOpen.value = false;
@@ -125,7 +127,7 @@ function onLogout() {
         </nav>
       </div>
 
-      <button class="logout-btn" @click="onLogout">
+      <button class="logout-btn" @click="showLogoutConfirm = true">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
           <polyline points="16 17 21 12 16 7" />
@@ -138,6 +140,16 @@ function onLogout() {
     <main class="admin-content">
       <router-view />
     </main>
+
+    <ConfirmModal
+      :open="showLogoutConfirm"
+      title="Log out?"
+      message="Are you sure you want to log out?"
+      confirm-label="Log Out"
+      variant="danger"
+      @confirm="onLogout"
+      @cancel="showLogoutConfirm = false"
+    />
   </div>
 </template>
 

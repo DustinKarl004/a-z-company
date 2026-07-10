@@ -1,8 +1,9 @@
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import Icon from "../components/Icon.vue";
+import ConfirmModal from "../components/ConfirmModal.vue";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -10,6 +11,8 @@ const router = useRouter();
 // "delivery" staff always get two tabs (Delivery + Stock Records) even when
 // it's their only role, so tab visibility can't just check role count.
 const showTabs = computed(() => auth.staffRoles.length > 1 || auth.staffRoles.includes("delivery"));
+
+const showLogoutConfirm = ref(false);
 
 function onLogout() {
   auth.logout();
@@ -28,7 +31,7 @@ function onLogout() {
         </div>
       </div>
 
-      <button type="button" class="logout-btn" @click="onLogout">
+      <button type="button" class="logout-btn" @click="showLogoutConfirm = true">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
           <polyline points="16 17 21 12 16 7" />
@@ -37,6 +40,16 @@ function onLogout() {
         Log out
       </button>
     </header>
+
+    <ConfirmModal
+      :open="showLogoutConfirm"
+      title="Log out?"
+      message="Are you sure you want to log out?"
+      confirm-label="Log Out"
+      variant="danger"
+      @confirm="onLogout"
+      @cancel="showLogoutConfirm = false"
+    />
 
     <nav v-if="showTabs" class="staff-tabs">
       <router-link
