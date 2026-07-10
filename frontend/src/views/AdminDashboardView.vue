@@ -1,9 +1,8 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { getMonthly, getOverview } from "../api/dashboard";
 import MonthYearPicker from "../components/MonthYearPicker.vue";
 import LoadingState from "../components/LoadingState.vue";
-import { formatTime } from "../utils/date";
 
 const SERIES_COLORS = ["#ff2d4d", "#ff8a3d", "#ffe14d", "#4dd6ff", "#8a6bff", "#4dffb0", "#ff4dd2", "#c8c8c8"];
 const BAR_COLOR = "#ff2d4d";
@@ -16,17 +15,6 @@ const monthlyLoading = ref(false);
 const now = new Date();
 const selectedYear = ref(now.getFullYear());
 const selectedMonth = ref(now.getMonth() + 1);
-
-const currentTime = ref(formatTime(new Date()));
-let clockTimer = null;
-onMounted(() => {
-  clockTimer = setInterval(() => {
-    currentTime.value = formatTime(new Date());
-  }, 30000);
-});
-onUnmounted(() => {
-  if (clockTimer) clearInterval(clockTimer);
-});
 
 function peso(amount) {
   return `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -172,7 +160,7 @@ const hoverTooltip = computed(() => {
     <div class="page-header">
       <div>
         <h1>Dashboard</h1>
-        <p class="page-subtitle">{{ overview ? new Date(overview.date).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) : "" }}&nbsp;&nbsp;{{ currentTime }}</p>
+        <p class="page-subtitle">{{ overview ? new Date(overview.date).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) : "" }}</p>
       </div>
     </div>
 
