@@ -5,6 +5,7 @@ import { listBranches } from "../api/branches";
 import { listStockItems } from "../api/stockItems";
 import { listStockCounts } from "../api/stockCounts";
 import { listStockDeliveries } from "../api/stockDeliveries";
+import CustomSelect from "../components/CustomSelect.vue";
 import Icon from "../components/Icon.vue";
 import LoadingState from "../components/LoadingState.vue";
 import { toLocalISO, fetchBusinessToday } from "../utils/date";
@@ -73,9 +74,30 @@ function isBranchCollapsed(branchId) {
   return collapsedBranches.value.has(branchId);
 }
 
+const search = ref("");
+const branchFilter = ref("");
+
+const hasActiveFilters = computed(() => !!(search.value.trim() || branchFilter.value));
+
+function clearFilters() {
+  search.value = "";
+  branchFilter.value = "";
+}
+
+const branchFilterOptions = computed(() => [
+  { label: "All branches", value: "" },
+  ...branches.value
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((b) => ({ label: b.name, value: b.id })),
+]);
+
 const rowsByBranch = computed(() => {
+  const term = search.value.trim().toLowerCase();
   const groups = new Map();
   for (const row of stockRows.value) {
+    if (branchFilter.value && row.branchId !== branchFilter.value) continue;
+    if (term && !row.itemName.toLowerCase().includes(term)) continue;
     if (!groups.has(row.branchId)) groups.set(row.branchId, []);
     groups.get(row.branchId).push(row);
   }
@@ -166,9 +188,45 @@ onMounted(refresh);
   <LoadingState v-if="loading" label="Loading stock records..." />
 
   <template v-else>
+    <div v-if="stockRows.length" class="card filters-card">
+      <div class="filters-head">
+        <span class="filters-title"><Icon name="filter" :size="14" /> Filters</span>
+        <button v-if="hasActiveFilters" type="button" class="clear-filters" @click="clearFilters">
+          <Icon name="x" :size="12" /> Clear filters
+        </button>
+      </div>
+      <div class="filters-grid">
+        <div class="field search-field">
+          <label for="stock-records-search">Search</label>
+          <div class="search-input">
+            <Icon name="search" :size="15" class="search-icon" />
+            <input id="stock-records-search" v-model="search" placeholder="Search by item name" />
+            <button v-if="search" type="button" class="search-clear" aria-label="Clear search" @click="search = ''">
+              <Icon name="x" :size="13" />
+            </button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="stock-records-branch-filter">Branch</label>
+          <CustomSelect
+            id="stock-records-branch-filter"
+            v-model="branchFilter"
+            :options="branchFilterOptions"
+            placeholder="All branches"
+          />
+        </div>
+      </div>
+    </div>
+
     <div v-if="!rowsByBranch.length" class="card state-card">
       <div class="empty-state">
-        <p>No stock records found for yesterday.</p>
+        <template v-if="stockRows.length">
+          <p>No stock records match your filters.</p>
+          <p class="empty-hint">Try clearing the search or filter above.</p>
+        </template>
+        <template v-else>
+          <p>No stock records found for yesterday.</p>
+        </template>
       </div>
     </div>
 
@@ -269,6 +327,103 @@ onMounted(refresh);
 
 .empty-state p {
   margin: 0;
+}
+
+.empty-hint {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-top: 0.35rem;
+}
+
+.filters-card {
+  padding: 1.1rem 1.25rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.filters-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.filters-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.clear-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.clear-filters:hover {
+  color: var(--color-primary-hover);
+  background: none;
+}
+
+.filters-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+}
+
+.filters-grid .field {
+  flex: 0 1 220px;
+  margin-bottom: 0;
+}
+
+.search-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.65rem;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.search-input input {
+  width: 100%;
+  padding-left: 2.1rem;
+  padding-right: 2.1rem;
+}
+
+.search-clear {
+  position: absolute;
+  right: 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  border-radius: 50%;
+}
+
+.search-clear:hover {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
 }
 
 .branch-groups {
@@ -387,6 +542,10 @@ onMounted(refresh);
 /* Below ~700px a wide table just forces sideways scrolling on a phone, so
    each row becomes its own stacked card instead — label/value pairs. */
 @media (max-width: 700px) {
+  .filters-grid .field {
+    flex-basis: 100%;
+  }
+
   .branch-card {
     padding: 1rem 0.85rem;
   }
