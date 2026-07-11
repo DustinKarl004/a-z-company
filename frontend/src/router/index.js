@@ -13,14 +13,10 @@ import StaffLayout from "../views/StaffLayout.vue";
 import StaffDeliveriesView from "../views/StaffDeliveriesView.vue";
 import StaffDeliveryLogView from "../views/StaffDeliveryLogView.vue";
 import StaffStockRecordsView from "../views/StaffStockRecordsView.vue";
+import SuperuserLayout from "../views/SuperuserLayout.vue";
+import SuperuserView from "../views/SuperuserView.vue";
 import NotFoundView from "../views/NotFoundView.vue";
-
-function defaultStaffRoute(auth) {
-  if (!auth.staffRoles.includes("staff") && auth.staffRoles.includes("delivery")) {
-    return { name: "staff-delivery-log" };
-  }
-  return { name: "staff-deliveries" };
-}
+import { defaultRouteForRole, defaultStaffRoute } from "../utils/roleRoute";
 
 const routes = [
   { path: "/login", name: "login", component: LoginView, meta: { guestOnly: true } },
@@ -65,6 +61,12 @@ const routes = [
       },
     ],
   },
+  {
+    path: "/superuser",
+    component: SuperuserLayout,
+    meta: { requiresRole: "superuser" },
+    children: [{ path: "", name: "superuser-backups", component: SuperuserView }],
+  },
   { path: "/", redirect: "/login" },
   { path: "/:pathMatch(.*)*", name: "not-found", component: NotFoundView },
 ];
@@ -78,7 +80,7 @@ router.beforeEach((to) => {
   const auth = useAuthStore();
 
   if (to.meta.guestOnly && auth.isAuthenticated) {
-    return auth.role === "admin" ? { name: "admin-dashboard" } : defaultStaffRoute(auth);
+    return defaultRouteForRole(auth);
   }
 
   if (to.meta.requiresRole) {
@@ -86,7 +88,7 @@ router.beforeEach((to) => {
       return { name: "login" };
     }
     if (auth.role !== to.meta.requiresRole) {
-      return auth.role === "admin" ? { name: "admin-dashboard" } : defaultStaffRoute(auth);
+      return defaultRouteForRole(auth);
     }
   }
 

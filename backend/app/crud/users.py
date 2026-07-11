@@ -22,6 +22,10 @@ def any_admin_exists(db: Session) -> bool:
     return db.scalar(select(User).where(User.role == "admin")) is not None
 
 
+def any_superuser_exists(db: Session) -> bool:
+    return db.scalar(select(User).where(User.role == "superuser")) is not None
+
+
 def create_user(
     db: Session,
     *,

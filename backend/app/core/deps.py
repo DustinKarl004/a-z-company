@@ -54,7 +54,22 @@ def require_staff_or_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+def require_superuser(user: User = Depends(get_current_user)) -> User:
+    if user.role != "superuser":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superuser access required")
+    return user
+
+
 def require_admin_password(payload: PasswordConfirm, user: User = Depends(require_admin)) -> User:
+    # 403, not 401 — this is a wrong re-confirmation password for one action, not
+    # an invalid/expired auth token. The frontend treats any 401 as "session
+    # expired" and force-logs-out, which would be wrong here.
     if not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Incorrect password")
+    return user
+
+
+def require_superuser_password(payload: PasswordConfirm, user: User = Depends(require_superuser)) -> User:
+    if not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Incorrect password")
     return user

@@ -81,7 +81,7 @@ def test_totp_disable_requires_correct_password(client, admin_token):
     client.post("/settings/totp/enable", json={"secret": secret, "code": pyotp.TOTP(secret).now()}, headers=headers)
 
     resp = client.post("/settings/totp/disable", json={"password": "wrongpass"}, headers=headers)
-    assert resp.status_code == 401
+    assert resp.status_code == 403
 
     resp = client.post("/settings/totp/disable", json={"password": "adminpass123"}, headers=headers)
     assert resp.status_code == 200

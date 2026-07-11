@@ -3,6 +3,7 @@ import { computed, nextTick, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { ApiError } from "../api/client";
+import { defaultRouteForRole } from "../utils/roleRoute";
 
 const email = ref("");
 const password = ref("");
@@ -71,7 +72,7 @@ async function onSubmit() {
   loading.value = true;
   try {
     await auth.login(email.value, password.value, totpCode.value);
-    router.push(auth.role === "admin" ? { name: "admin-dashboard" } : { name: "staff-deliveries" });
+    router.push(defaultRouteForRole(auth));
   } catch (e) {
     if (e instanceof ApiError && e.detail === "Valid authenticator code required") {
       if (needsTotpCode.value) {

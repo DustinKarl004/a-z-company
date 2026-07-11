@@ -19,6 +19,25 @@ class Settings(BaseSettings):
     admin_email: str = "admin@za-company.com"
     admin_password: str = "change-me"
 
+    superuser_email: str = "superuser@za-company.com"
+    superuser_password: str = "change-me"
+
+    # Local hour (in app_timezone) the daily backup job runs at. Must be AFTER
+    # business_day_cutoff_hour, not before — branches can stay open past midnight,
+    # so the business day (and staff's ability to edit "today") doesn't actually
+    # close until the cutoff hour. Backing up too early (e.g. 11pm) would miss
+    # edits made between then and the cutoff. Default is cutoff + 1 hour, giving
+    # a small buffer once the day has genuinely closed.
+    backup_hour_local: int = 7
+    # Kill switch — set to false to pause the scheduled backup without a redeploy.
+    backup_enabled: bool = True
+    # OAuth credentials (as your own Google account, not a service account — service
+    # accounts have no Drive storage quota of their own) used to upload backups to Drive.
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
+    google_oauth_refresh_token: str = ""
+    google_drive_folder_id: str = ""
+
     # Comma-separated list of allowed frontend origins, e.g. "https://za-company.vercel.app".
     # Defaults to "*" for local dev; set explicitly in production.
     cors_origins: str = "*"

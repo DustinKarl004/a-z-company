@@ -1,3 +1,4 @@
+from app.models.backup_run import BackupRun
 from app.models.base import Base
 from app.models.branch import Branch
 from app.models.expense import Expense
@@ -18,4 +19,5 @@ __all__ = [
     "StockNeed",
     "Sale",
     "Expense",
+    "BackupRun",
 ]

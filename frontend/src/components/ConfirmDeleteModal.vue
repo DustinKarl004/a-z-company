@@ -10,6 +10,7 @@ const props = defineProps({
   loadingLabel: { type: String, default: "Deleting..." },
   loading: { type: Boolean, default: false },
   error: { type: String, default: "" },
+  passwordLabel: { type: String, default: "Enter your admin password to confirm" },
 });
 
 const emit = defineEmits(["confirm", "cancel"]);
@@ -47,7 +48,7 @@ function onCancel() {
 
     <div>
       <div class="field">
-        <label for="confirm-delete-password">Enter your admin password to confirm</label>
+        <label for="confirm-delete-password">{{ passwordLabel }}</label>
         <div class="inpw">
           <input
             id="confirm-delete-password"

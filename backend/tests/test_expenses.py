@@ -377,7 +377,7 @@ def test_delete_month_data_requires_correct_password(client, admin_token, branch
         json={"password": "wrongpass"},
         headers=admin_headers,
     )
-    assert resp.status_code == 401
+    assert resp.status_code == 403
 
     resp = client.get("/expenses", headers=admin_headers)
     assert len(resp.json()) == 1

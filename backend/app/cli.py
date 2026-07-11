@@ -5,7 +5,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.crud.stock_items import create_stock_item
-from app.crud.users import any_admin_exists, create_user
+from app.crud.users import any_admin_exists, any_superuser_exists, create_user
 from app.models.stock_item import StockItem
 
 STOCK_ITEMS_SEED = [
@@ -61,6 +61,25 @@ def seed_admin() -> None:
         db.close()
 
 
+def seed_superuser() -> None:
+    db = SessionLocal()
+    try:
+        if any_superuser_exists(db):
+            print("A superuser already exists — skipping seed.")
+            return
+        create_user(
+            db,
+            name="Superuser",
+            email=settings.superuser_email,
+            password=settings.superuser_password,
+            role="superuser",
+            branch_id=None,
+        )
+        print(f"Created default superuser: {settings.superuser_email}")
+    finally:
+        db.close()
+
+
 def seed_stock_items() -> None:
     db = SessionLocal()
     try:
@@ -77,11 +96,14 @@ def seed_stock_items() -> None:
 
 
 def main() -> None:
-    if len(sys.argv) < 2 or sys.argv[1] not in ("seed-admin", "seed-stock-items"):
-        print("Usage: python -m app.cli seed-admin|seed-stock-items")
+    commands = ("seed-admin", "seed-superuser", "seed-stock-items")
+    if len(sys.argv) < 2 or sys.argv[1] not in commands:
+        print(f"Usage: python -m app.cli {'|'.join(commands)}")
         sys.exit(1)
     if sys.argv[1] == "seed-admin":
         seed_admin()
+    elif sys.argv[1] == "seed-superuser":
+        seed_superuser()
     else:
         seed_stock_items()
 
