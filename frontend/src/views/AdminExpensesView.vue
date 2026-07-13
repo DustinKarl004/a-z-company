@@ -22,7 +22,6 @@ import Modal from "../components/Modal.vue";
 import { fetchBusinessToday, toLocalISO, todayLocalISO } from "../utils/date";
 
 const today = todayLocalISO();
-console.log("[AdminExpenses] device-guessed today (before server sync):", today);
 
 const branches = ref([]);
 const selectedDate = ref(today);
@@ -196,18 +195,8 @@ async function refresh() {
   error.value = "";
   const params = { date: selectedDate.value };
   if (selectedBranchId.value) params.branch_id = selectedBranchId.value;
-  console.log("[AdminExpenses] refresh() fetching expenses/sales with params:", params);
   try {
     [expenses.value, sales.value] = await Promise.all([listExpenses(params), listSales(params)]);
-    console.log(
-      "[AdminExpenses] expenses received:",
-      expenses.value.map((e) => ({
-        branch_id: e.branch_id,
-        amount: e.amount,
-        is_carried_forward: e.is_carried_forward,
-        is_projected: e.is_projected,
-      }))
-    );
     for (const b of branches.value) {
       const bill = billRowFor(b.id);
       bill.id = null;
@@ -991,15 +980,8 @@ onMounted(async () => {
   const wasOnToday = selectedDate.value === today;
   const { date: serverToday } = await fetchBusinessToday();
   const serverTodayISO = toLocalISO(serverToday);
-  console.log("[AdminExpenses] server business-day today:", serverTodayISO);
   serverToday.value = serverTodayISO;
   if (wasOnToday && serverTodayISO !== selectedDate.value) {
-    console.log(
-      "[AdminExpenses] correcting selectedDate from device guess to server date:",
-      selectedDate.value,
-      "->",
-      serverTodayISO
-    );
     selectedDate.value = serverTodayISO;
   }
 

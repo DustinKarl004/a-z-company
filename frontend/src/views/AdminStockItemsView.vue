@@ -149,15 +149,12 @@ function cancelAddUnit() {
 
 function confirmAddUnit(setUnit) {
   const value = newUnit.value.trim();
-  console.log("[stock-items] confirmAddUnit called with:", value);
   if (!value) {
-    console.log("[stock-items] confirmAddUnit: empty value, cancelling");
     cancelAddUnit();
     return;
   }
   const existing = unitOptions.value.find((u) => u.toLowerCase() === value.toLowerCase());
   if (!existing) unitOptions.value.push(value);
-  console.log("[stock-items] unitOptions after add:", [...unitOptions.value]);
   setUnit(existing || value);
   cancelAddUnit();
 }
@@ -186,9 +183,7 @@ function confirmAddCategory(setCategory) {
 
 async function refresh() {
   loading.value = true;
-  console.log("[stock-items] refresh: fetching items...");
   [items.value, branches.value] = await Promise.all([listStockItems(), listBranches()]);
-  console.log("[stock-items] refresh: fetched items:", JSON.parse(JSON.stringify(items.value)));
   items.value.forEach((i) => {
     if (i.unit && !unitOptions.value.some((u) => u.toLowerCase() === i.unit.toLowerCase())) {
       unitOptions.value.push(i.unit);
@@ -197,7 +192,6 @@ async function refresh() {
       categoryOptions.value.push(i.category);
     }
   });
-  console.log("[stock-items] refresh: unitOptions after merge:", [...unitOptions.value]);
   loading.value = false;
 }
 
@@ -216,7 +210,6 @@ function closeAddModal() {
 }
 
 async function onSubmit() {
-  console.log("[stock-items] onSubmit fired with form:", { ...form.value });
   error.value = "";
   submitting.value = true;
   try {
@@ -225,12 +218,10 @@ async function onSubmit() {
       price: Number(form.value.price),
       category: form.value.category || null,
     });
-    console.log("[stock-items] createStockItem response:", created);
     form.value = { name: "", unit: "", price: "", category: "", branchIds: [] };
     showAddModal.value = false;
     await refresh();
   } catch (e) {
-    console.error("[stock-items] createStockItem failed:", e);
     error.value = e instanceof ApiError ? e.detail || "Could not create item" : "Could not create item";
   } finally {
     submitting.value = false;
@@ -258,13 +249,6 @@ function cancelEdit() {
 }
 
 async function saveEdit() {
-  console.log("[stock-items] saveEdit fired with:", {
-    id: editingId.value,
-    name: editingName.value,
-    unit: editingUnit.value,
-    price: editingPrice.value,
-    category: editingCategory.value,
-  });
   editError.value = "";
   savingEdit.value = true;
   try {
@@ -275,11 +259,9 @@ async function saveEdit() {
       category: editingCategory.value || null,
       branchIds: editingBranchIds.value,
     });
-    console.log("[stock-items] updateStockItem response:", updated);
     editingId.value = null;
     await refresh();
   } catch (e) {
-    console.error("[stock-items] updateStockItem failed:", e);
     editError.value = e instanceof ApiError ? e.detail || "Could not update item" : "Could not update item";
   } finally {
     savingEdit.value = false;
@@ -498,11 +480,7 @@ onMounted(refresh);
         <p v-if="error" class="error-message">{{ error }}</p>
         <div class="modal-actions">
           <button type="button" class="secondary cancel" :disabled="submitting" @click="closeAddModal">Cancel</button>
-          <button
-            type="submit"
-            :disabled="submitting || !form.unit"
-            @click="console.log('[stock-items] Add item button clicked, form:', { ...form })"
-          >
+          <button type="submit" :disabled="submitting || !form.unit">
             {{ submitting ? "Adding..." : "Add item" }}
           </button>
         </div>
@@ -721,11 +699,7 @@ onMounted(refresh);
         <p v-if="editError" class="error-message">{{ editError }}</p>
         <div class="modal-actions">
           <button type="button" class="secondary cancel" :disabled="savingEdit" @click="cancelEdit">Cancel</button>
-          <button
-            type="submit"
-            :disabled="savingEdit || !editingName.trim() || !editingUnit"
-            @click="console.log('[stock-items] Save button clicked, editingUnit:', editingUnit)"
-          >
+          <button type="submit" :disabled="savingEdit || !editingName.trim() || !editingUnit">
             {{ savingEdit ? "Saving..." : "Save" }}
           </button>
         </div>
